@@ -19,18 +19,8 @@ server/media/
 .DS_Store
 Thumbs.db
 
-# ─── Android ──────────────────────────────────────────────────────────────────
-mobile/.gradle/
-mobile/app/build/
-mobile/build/
-mobile/local.properties
-mobile/*.iml
-mobile/.idea/
-mobile/app/release/
-*.apk
-*.aab
-*.keystore
-!debug.keystore
+# ─── Android (deprecated - use PrismLive instead) ────────────────────────────
+mobile/
 
 # ─── IDE ──────────────────────────────────────────────────────────────────────
 .vscode/

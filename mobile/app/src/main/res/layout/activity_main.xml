@@ -7,7 +7,7 @@
     android:background="#0A0B0F">
 
     <!-- Camera Preview (full screen background) -->
-    <SurfaceView
+    <com.pedro.library.view.OpenGlView
         android:id="@+id/surfaceView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

@@ -1,238 +1,291 @@
-import React, { useEffect, useRef, useState } from 'react';
-import Hls from 'hls.js';
-import { Play, Pause, Volume2, VolumeX, Maximize, RefreshCw, Tv2, AlertCircle, Signal } from 'lucide-react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import mpegts from 'mpegts.js';
+import axios from 'axios';
+import {
+  Play, Pause, Volume2, VolumeX, Maximize, RefreshCw,
+  Tv2, AlertCircle, Radio, Wifi, WifiOff
+} from 'lucide-react';
+
+const POLL_MS = 4000;
+const RETRY_MS = 5000;
 
 export default function PlayerPage() {
   const videoRef = useRef(null);
-  const hlsRef = useRef(null);
-  const [streamKey, setStreamKey] = useState('');
-  const [inputKey, setInputKey] = useState('');
-  const [serverUrl, setServerUrl] = useState(window.location.hostname);
-  const [hlsPort, setHlsPort] = useState('8000');
-  const [playing, setPlaying] = useState(false);
-  const [muted, setMuted] = useState(true);
-  const [error, setError] = useState(null);
+  const playerRef = useRef(null);
+  const retryRef  = useRef(null);
+
+  const [playing,    setPlaying]    = useState(false);
+  const [muted,      setMuted]      = useState(true);
+  const [error,      setError]      = useState(null);
   const [connecting, setConnecting] = useState(false);
-  const [hlsStats, setHlsStats] = useState(null);
+  const [keys,       setKeys]       = useState([]);
+  const [selectedKey,setSelectedKey]= useState('');
+  const [signal,     setSignal]     = useState({ status: 'offline', streamPath: null });
+  const [loading,    setLoading]    = useState(true);
 
-  const getHlsUrl = (key) =>
-    `http://${serverUrl}:${hlsPort}/live/${key}/index.m3u8`;
+  // ─── Bootstrap ────────────────────────────────────────────────────────────────
+  const bootstrap = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [keysRes, sigRes] = await Promise.all([
+        axios.get('/api/keys'),
+        axios.get('/signal/status')
+      ]);
+      const loadedKeys = keysRes.data.keys || [];
+      setKeys(loadedKeys);
+      const sig = sigRes.data;
+      setSignal(sig);
 
-  const connect = () => {
-    if (!inputKey.trim()) return;
-    setStreamKey(inputKey.trim());
-    setError(null);
-  };
-
-  useEffect(() => {
-    if (!streamKey || !videoRef.current) return;
-    const url = getHlsUrl(streamKey);
-    setConnecting(true);
-
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-    }
-
-    if (Hls.isSupported()) {
-      const hls = new Hls({
-        liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 5,
-        enableWorker: true,
-        lowLatencyMode: true
-      });
-      hlsRef.current = hls;
-      hls.loadSource(url);
-      hls.attachMedia(videoRef.current);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setConnecting(false);
-        videoRef.current.play().catch(() => {});
-        setPlaying(true);
-      });
-
-      hls.on(Hls.Events.ERROR, (event, data) => {
-        if (data.fatal) {
-          setConnecting(false);
-          setError(`Erro HLS: ${data.type} — Verifique a chave e se há stream ativo.`);
-          setPlaying(false);
-        }
-      });
-
-      hls.on(Hls.Events.FRAG_LOADED, (_, data) => {
-        setHlsStats({
-          level: hls.currentLevel,
-          bitrate: data.frag.stats?.total ? Math.round(data.frag.stats.total * 8 / 1000) : null,
-          latency: data.frag.stats?.loading?.end ? Math.round(data.frag.stats.loading.end - data.frag.stats.loading.start) : null
-        });
-      });
-    } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
-      videoRef.current.src = url;
-      videoRef.current.addEventListener('loadedmetadata', () => {
-        videoRef.current.play();
-        setPlaying(true);
-        setConnecting(false);
-      });
-    } else {
-      setError('HLS não é suportado neste navegador.');
-      setConnecting(false);
-    }
-
-    return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
+      let autoKey = '';
+      if ((sig.status === 'live' || sig.status === 'weak') && sig.streamPath) {
+        autoKey = sig.streamPath.split('/').pop();
       }
-    };
-  }, [streamKey, serverUrl, hlsPort]);
+      if (!autoKey && loadedKeys.length > 0) autoKey = loadedKeys[0].key;
+      if (autoKey) setSelectedKey(autoKey);
+    } catch (err) {
+      console.error('[Player] bootstrap:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
+  useEffect(() => { bootstrap(); }, [bootstrap]);
+
+  // ─── HTTP-FLV player via mpegts.js (nativo no NMS, sem FFmpeg) ──────────────
+  const destroyPlayer = useCallback(() => {
+    if (retryRef.current) { clearTimeout(retryRef.current); retryRef.current = null; }
+    if (playerRef.current) {
+      try { playerRef.current.unload(); playerRef.current.detachMediaElement(); playerRef.current.destroy(); } catch (_) {}
+      playerRef.current = null;
+    }
+  }, []);
+
+  const startPlayer = useCallback((key) => {
+    if (!key || !videoRef.current) return;
+    destroyPlayer();
+    setError(null);
+    setConnecting(true);
+    setPlaying(false);
+
+    if (!mpegts.isSupported()) {
+      setError('mpegts.js não é suportado neste navegador.');
+      setConnecting(false);
+      return;
+    }
+
+    // HTTP-FLV via proxy Vite → NMS porta 8000
+    // NMS serve FLV nativamente sem FFmpeg
+    const url = `/live/${key}.flv`;
+
+    const player = mpegts.createPlayer({
+      type: 'flv',
+      isLive: true,
+      url,
+    }, {
+      enableWorker: true,
+      lazyLoadMaxDuration: 3,
+      seekType: 'range',
+      liveBufferLatencyChasing: true,
+      liveBufferLatencyMaxLatency: 1.5,
+      liveBufferLatencyMinRemain: 0.5,
+    });
+
+    playerRef.current = player;
+    player.attachMediaElement(videoRef.current);
+
+    player.on(mpegts.Events.ERROR, (type, detail) => {
+      console.error('[FLV] error', type, detail);
+      setConnecting(false);
+      setError('Stream não encontrado ou ainda não iniciado. Tentando novamente...');
+      setPlaying(false);
+      destroyPlayer();
+      retryRef.current = setTimeout(() => startPlayer(key), RETRY_MS);
+    });
+
+    player.on(mpegts.Events.MEDIA_INFO, () => {
+      setConnecting(false);
+      setError(null);
+      videoRef.current?.play().catch(() => {});
+      setPlaying(true);
+    });
+
+    player.load();
+    videoRef.current.muted = muted;
+  }, [muted, destroyPlayer]); // eslint-disable-line
+
+  // Auto-play quando chave muda
+  useEffect(() => {
+    if (!selectedKey) return;
+    startPlayer(selectedKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKey]);
+
+  // Polling do sinal
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const res = await axios.get('/signal/status');
+        setSignal(res.data);
+        const { status, streamPath } = res.data;
+        if ((status === 'live' || status === 'weak') && streamPath) {
+          const k = streamPath.split('/').pop();
+          setSelectedKey(prev => (k !== prev ? k : prev));
+        }
+      } catch (_) {}
+    }, POLL_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  // Cleanup
+  useEffect(() => () => { destroyPlayer(); }, [destroyPlayer]);
+
+  // Controles
   const togglePlay = () => {
     if (!videoRef.current) return;
-    if (playing) {
-      videoRef.current.pause();
-      setPlaying(false);
-    } else {
-      videoRef.current.play();
-      setPlaying(true);
-    }
+    if (playing) { videoRef.current.pause(); setPlaying(false); }
+    else { videoRef.current.play(); setPlaying(true); }
   };
-
   const toggleMute = () => {
     if (!videoRef.current) return;
-    videoRef.current.muted = !muted;
-    setMuted(!muted);
+    const next = !muted;
+    videoRef.current.muted = next;
+    setMuted(next);
   };
+  const fullscreen = () => videoRef.current?.requestFullscreen?.();
+  const reload = () => { if (selectedKey) startPlayer(selectedKey); };
 
-  const fullscreen = () => {
-    if (!videoRef.current) return;
-    if (videoRef.current.requestFullscreen) videoRef.current.requestFullscreen();
-  };
-
-  const reconnect = () => {
-    setStreamKey('');
-    setTimeout(() => setStreamKey(inputKey.trim()), 100);
-    setError(null);
-  };
+  const selectedMeta = keys.find(k => k.key === selectedKey);
+  const sigColors = { live: 'var(--accent-green)', weak: 'var(--accent-orange)', lost: 'var(--accent-red)', connecting: 'var(--accent-primary)', offline: 'var(--text-muted)' };
+  const sigLabels = { live: '🔴 Ao Vivo', weak: '⚠ Sinal Fraco', lost: '✗ Sinal Perdido', connecting: '◌ Conectando', offline: '— Offline' };
 
   return (
     <div className="animate-fadeInUp">
+
       <div className="page-header">
         <h1>Monitor ao Vivo</h1>
-        <p>Visualize o stream recebido pelo servidor em tempo real via HLS</p>
+        <p>Streaming via HTTP-FLV — baixa latência, sem necessidade de FFmpeg</p>
       </div>
 
-      {/* Connection Panel */}
-      <div className="card player-connect-panel">
-        <h3 style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Signal size={16} color="var(--accent-primary)" />
-          Configuração do Player
-        </h3>
-        <div className="player-connect-form">
-          <div className="form-group">
-            <label className="form-label">Endereço do Servidor</label>
-            <input
-              id="player-server-url"
-              type="text"
-              className="form-input"
-              value={serverUrl}
-              onChange={e => setServerUrl(e.target.value)}
-              placeholder="192.168.1.100 ou meuservidor.com"
-            />
-          </div>
-          <div className="form-group" style={{ maxWidth: 120 }}>
-            <label className="form-label">Porta HLS</label>
-            <input
-              id="player-hls-port"
-              type="number"
-              className="form-input"
-              value={hlsPort}
-              onChange={e => setHlsPort(e.target.value)}
-              placeholder="8000"
-            />
-          </div>
-          <div className="form-group" style={{ flex: 1 }}>
-            <label className="form-label">Chave de Stream</label>
-            <input
-              id="player-stream-key"
-              type="text"
-              className="form-input"
-              value={inputKey}
-              onChange={e => setInputKey(e.target.value)}
-              placeholder="sua-chave-de-transmissao"
-              onKeyDown={e => e.key === 'Enter' && connect()}
-            />
-          </div>
-          <div className="form-group" style={{ justifyContent: 'flex-end' }}>
-            <label className="form-label">&nbsp;</label>
-            <button id="player-connect-btn" className="btn btn-primary" onClick={connect} disabled={!inputKey.trim() || connecting}>
-              {connecting ? <><span className="loader" style={{ width: 15, height: 15 }} /> Conectando...</> : <><Play size={15} /> Conectar</>}
-            </button>
-          </div>
+      {/* Status Bar */}
+      <div className="pl-bar">
+        <div className="pl-bar-item">
+          {(signal.status === 'live' || signal.status === 'weak')
+            ? <Radio size={14} color={sigColors[signal.status]} />
+            : <WifiOff size={14} color={sigColors[signal.status]} />
+          }
+          <span style={{ color: sigColors[signal.status], fontWeight: 700 }}>
+            {sigLabels[signal.status] || '— Offline'}
+          </span>
         </div>
 
-        {streamKey && (
-          <div className="player-url-preview">
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>URL HLS:</span>
-            <code className="code-block" style={{ flex: 1 }}>{getHlsUrl(streamKey)}</code>
+        <div className="pl-bar-item">
+          <Wifi size={13} color="var(--text-muted)" />
+          <code style={{ fontSize: '0.75rem' }}>
+            /live/{selectedKey || '...'}.flv
+          </code>
+          <span className="pl-badge-green">HTTP-FLV</span>
+        </div>
+
+        {selectedMeta && (
+          <div className="pl-bar-item">
+            <span style={{ color: 'var(--text-muted)' }}>Canal:</span>
+            <strong style={{ color: 'var(--accent-primary)' }}>{selectedMeta.label}</strong>
           </div>
         )}
+
+        <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={bootstrap}>
+          <RefreshCw size={13} /> Recarregar
+        </button>
       </div>
 
-      {/* Video Player */}
-      <div className="card player-wrapper">
-        <div className={`player-video-container ${streamKey ? 'player-video-container--active' : ''}`}>
-          {!streamKey && (
-            <div className="player-placeholder">
-              <Tv2 size={64} color="var(--text-muted)" />
-              <p>Insira uma chave de stream para começar a monitorar</p>
+      {/* Canal tabs (múltiplas chaves) */}
+      {!loading && keys.length > 1 && (
+        <div className="card" style={{ padding: '12px 18px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Canal:</span>
+          {keys.map(k => (
+            <button
+              key={k.key}
+              onClick={() => setSelectedKey(k.key)}
+              className={`pl-tab${selectedKey === k.key ? ' pl-tab-active' : ''}`}
+            >
+              <Radio size={11} /> {k.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Player */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="pl-wrap">
+
+          {loading && (
+            <div className="pl-overlay">
+              <div className="loader" style={{ width: 44, height: 44, borderWidth: 4 }} />
+              <p>Detectando stream automaticamente...</p>
             </div>
           )}
 
-          {connecting && (
-            <div className="player-overlay">
-              <div className="loader" style={{ width: 40, height: 40, borderWidth: 4 }} />
-              <p>Conectando ao stream...</p>
+          {!loading && connecting && (
+            <div className="pl-overlay">
+              <div className="loader" style={{ width: 44, height: 44, borderWidth: 4 }} />
+              <p>Conectando ao stream{selectedMeta ? ` "${selectedMeta.label}"` : ''}...</p>
             </div>
           )}
 
-          {error && (
-            <div className="player-overlay player-overlay--error">
-              <AlertCircle size={40} color="var(--accent-red)" />
-              <p>{error}</p>
-              <button className="btn btn-ghost btn-sm" onClick={reconnect}>
-                <RefreshCw size={14} /> Reconectar
+          {!loading && !connecting && error && (
+            <div className="pl-overlay pl-overlay-err">
+              <AlertCircle size={48} style={{ opacity: 0.7, color: 'var(--accent-red)' }} />
+              <p style={{ maxWidth: 360, textAlign: 'center' }}>{error}</p>
+              <button className="btn btn-ghost btn-sm" onClick={reload}>
+                <RefreshCw size={13} /> Tentar agora
               </button>
+              {signal.status === 'offline' && (
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Nenhum stream ativo. Inicie o APK para transmitir.
+                </p>
+              )}
+            </div>
+          )}
+
+          {!loading && !connecting && !error && !selectedKey && (
+            <div className="pl-overlay">
+              <Tv2 size={64} color="var(--text-muted)" />
+              <p>Nenhuma chave cadastrada.</p>
+              <a href="/keys" className="btn btn-primary btn-sm">Criar chave de stream</a>
             </div>
           )}
 
           <video
             ref={videoRef}
-            muted={muted}
             playsInline
-            className={`player-video ${streamKey && !error ? 'player-video--visible' : ''}`}
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%',
+              objectFit: 'contain',
+              opacity: (selectedKey && !error && !connecting) ? 1 : 0,
+              transition: 'opacity 0.5s'
+            }}
           />
 
-          {/* Controls overlay */}
-          {streamKey && !error && !connecting && (
-            <div className="player-controls">
-              <div className="player-controls-inner">
-                <div className="player-controls-left">
-                  <button className="player-btn" onClick={togglePlay} title={playing ? 'Pausar' : 'Play'}>
-                    {playing ? <Pause size={18} /> : <Play size={18} />}
+          {selectedKey && !error && !loading && (
+            <div className="pl-controls">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button className="pl-btn" onClick={togglePlay}>
+                    {playing ? <Pause size={18}/> : <Play size={18}/>}
                   </button>
-                  <button className="player-btn" onClick={toggleMute} title={muted ? 'Ativar som' : 'Mutar'}>
-                    {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                  <button className="pl-btn" onClick={toggleMute}>
+                    {muted ? <VolumeX size={18}/> : <Volume2 size={18}/>}
                   </button>
-                  <span className="badge badge-live">● AO VIVO</span>
+                  {playing && <span className="badge badge-live">● AO VIVO</span>}
+                  {selectedMeta && <span className="pl-stat">{selectedMeta.label}</span>}
                 </div>
-                <div className="player-controls-right">
-                  {hlsStats?.bitrate && (
-                    <span className="player-stat">{hlsStats.bitrate} kbps</span>
-                  )}
-                  <button className="player-btn" onClick={reconnect} title="Reconectar">
-                    <RefreshCw size={16} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button className="pl-btn" onClick={reload} title="Reconectar">
+                    <RefreshCw size={15}/>
                   </button>
-                  <button className="player-btn" onClick={fullscreen} title="Tela cheia">
-                    <Maximize size={16} />
+                  <button className="pl-btn" onClick={fullscreen} title="Tela cheia">
+                    <Maximize size={16}/>
                   </button>
                 </div>
               </div>
@@ -242,77 +295,57 @@ export default function PlayerPage() {
       </div>
 
       <style>{`
-        .player-connect-panel { margin-bottom: 20px; }
-        .player-connect-form {
-          display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap;
+        .pl-bar {
+          display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+          background: var(--bg-glass); border: 1px solid var(--border-subtle);
+          border-radius: var(--radius-md); padding: 10px 16px; margin-bottom: 16px;
+          backdrop-filter: blur(12px); font-size: 0.8rem;
         }
-        .player-connect-form .form-group:first-child { width: 220px; }
-        .player-connect-form .form-group:last-child { flex-shrink: 0; }
-        .player-url-preview {
-          display: flex; align-items: center; gap: 10px;
-          margin-top: 14px;
+        .pl-bar-item { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+        .pl-badge-green {
+          font-size: 0.65rem; padding: 1px 7px; border-radius: 4px; font-weight: 700;
+          color: var(--accent-green); background: rgba(0,230,118,0.12);
+          border: 1px solid rgba(0,230,118,0.2);
         }
-
-        .player-wrapper { padding: 0; overflow: hidden; }
-        .player-video-container {
-          position: relative;
-          background: #000;
-          aspect-ratio: 16/9;
+        .pl-tab {
+          display: inline-flex; align-items: center; gap: 5px;
+          padding: 6px 14px; border-radius: 99px; cursor: pointer;
+          border: 1.5px solid var(--border-subtle); background: var(--bg-elevated);
+          color: var(--text-muted); font-size: 0.8rem; font-weight: 500; transition: all 0.2s;
+        }
+        .pl-tab:hover { border-color: var(--border-glow); color: var(--text-primary); }
+        .pl-tab-active {
+          border-color: rgba(108,99,255,0.5); background: rgba(108,99,255,0.12);
+          color: var(--accent-primary); font-weight: 700;
+        }
+        .pl-wrap {
+          position: relative; background: #050508; aspect-ratio: 16/9;
           display: flex; align-items: center; justify-content: center;
-          border-radius: var(--radius-lg);
-          overflow: hidden;
+          border-radius: var(--radius-lg); overflow: hidden;
         }
-
-        .player-placeholder {
-          display: flex; flex-direction: column; align-items: center; gap: 16px;
-          color: var(--text-muted);
+        .pl-overlay {
+          position: absolute; inset: 0; z-index: 5; background: rgba(0,0,0,0.78);
+          display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
         }
-        .player-placeholder p { font-size: 0.9rem; }
-
-        .player-overlay {
-          position: absolute; inset: 0;
-          display: flex; flex-direction: column; align-items: center; justify-content: center;
-          gap: 14px; background: rgba(0,0,0,0.8); z-index: 5;
+        .pl-overlay p { font-size: 0.9rem; color: var(--text-secondary); }
+        .pl-overlay-err p { color: rgba(255,71,87,0.9); }
+        .pl-controls {
+          position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
+          background: linear-gradient(transparent, rgba(0,0,0,0.9));
+          padding: 32px 16px 14px; opacity: 0; transition: opacity 0.2s;
         }
-        .player-overlay p { font-size: 0.9rem; color: var(--text-secondary); }
-        .player-overlay--error p { color: var(--accent-red); }
-
-        .player-video {
-          position: absolute; inset: 0;
-          width: 100%; height: 100%;
-          object-fit: contain;
-          opacity: 0; transition: opacity 0.5s;
-        }
-        .player-video--visible { opacity: 1; }
-
-        .player-controls {
-          position: absolute; bottom: 0; left: 0; right: 0;
-          background: linear-gradient(transparent, rgba(0,0,0,0.8));
-          padding: 24px 16px 16px;
-          z-index: 10;
-          opacity: 0; transition: opacity 0.25s;
-        }
-        .player-video-container:hover .player-controls { opacity: 1; }
-
-        .player-controls-inner {
-          display: flex; align-items: center; justify-content: space-between;
-        }
-        .player-controls-left, .player-controls-right {
-          display: flex; align-items: center; gap: 8px;
-        }
-        .player-btn {
-          background: rgba(255,255,255,0.1);
-          border: none; color: #fff; cursor: pointer;
-          width: 36px; height: 36px;
-          border-radius: var(--radius-sm);
-          display: flex; align-items: center; justify-content: center;
+        .pl-wrap:hover .pl-controls { opacity: 1; }
+        .pl-btn {
+          width: 36px; height: 36px; border-radius: var(--radius-sm);
+          background: rgba(255,255,255,0.12); border: none; color: #fff;
+          cursor: pointer; display: flex; align-items: center; justify-content: center;
           transition: background 0.2s;
         }
-        .player-btn:hover { background: rgba(255,255,255,0.25); }
-        .player-stat {
-          font-size: 0.75rem; color: rgba(255,255,255,0.7);
-          background: rgba(0,0,0,0.4);
-          padding: 3px 8px; border-radius: 4px;
+        .pl-btn:hover { background: rgba(255,255,255,0.25); }
+        .pl-stat {
+          font-size: 0.74rem; color: rgba(255,255,255,0.75);
+          background: rgba(0,0,0,0.4); padding: 3px 8px; border-radius: 4px;
+          white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis;
         }
       `}</style>
     </div>

@@ -15,15 +15,14 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.irlstreamer.app.databinding.ActivityMainBinding
 import com.pedro.encoder.input.video.CameraHelper
-import com.pedro.rtmp.utils.ConnectCheckerRtmp
-import com.pedro.rtsp.utils.ConnectCheckerRtsp
+import com.pedro.common.ConnectChecker
 import com.pedro.library.rtmp.RtmpCamera2
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class MainActivity : AppCompatActivity(), ConnectCheckerRtmp, SurfaceHolder.Callback {
+class MainActivity : AppCompatActivity(), ConnectChecker, SurfaceHolder.Callback {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var prefs: StreamPreferences
@@ -84,7 +83,7 @@ class MainActivity : AppCompatActivity(), ConnectCheckerRtmp, SurfaceHolder.Call
         // Toggle torch
         binding.btnTorch.setOnClickListener {
             rtmpCamera?.let {
-                if (it.isLightEnabled) {
+                if (it.isLanternEnabled) {
                     it.disableLantern()
                     binding.btnTorch.alpha = 0.5f
                 } else {
@@ -117,7 +116,6 @@ class MainActivity : AppCompatActivity(), ConnectCheckerRtmp, SurfaceHolder.Call
 
     private fun initCamera() {
         rtmpCamera = RtmpCamera2(binding.surfaceView, this)
-        rtmpCamera?.setReTries(maxReconnectAttempts)
     }
 
     private fun startStream() {
@@ -145,7 +143,8 @@ class MainActivity : AppCompatActivity(), ConnectCheckerRtmp, SurfaceHolder.Call
                     1280, 720,    // 720p
                     30,           // FPS
                     currentBitrate,
-                    CameraHelper.Facing.BACK
+                    1,            // 1 = BACK, 0 = FRONT
+                    0             // rotation
                 ) == true
             ) {
                 rtmpCamera?.startStream(rtmpUrl)
@@ -195,7 +194,7 @@ class MainActivity : AppCompatActivity(), ConnectCheckerRtmp, SurfaceHolder.Call
                         val serverUrl = binding.etServerUrl.text.toString().trim()
                         val streamKey = binding.etStreamKey.text.toString().trim()
                         val rtmpUrl = buildRtmpUrl(serverUrl, streamKey)
-                        rtmpCamera?.reTry(delayMs, rtmpUrl, null)
+                        rtmpCamera?.startStream(rtmpUrl)
                     }
                 }
             } else {
@@ -222,39 +221,43 @@ class MainActivity : AppCompatActivity(), ConnectCheckerRtmp, SurfaceHolder.Call
         runOnUiThread { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() }
     }
 
-    // ─── ConnectCheckerRtmp callbacks ─────────────────────────────────────────
+    // ─── ConnectChecker callbacks ─────────────────────────────────────────
 
-    override fun onConnectionSuccessRtmp() {
+    override fun onConnectionStarted(url: String) {
+        updateStatusText("Iniciando...", Color.YELLOW)
+    }
+
+    override fun onConnectionSuccess() {
         runOnUiThread {
             updateStatusText("🔴 AO VIVO", Color.parseColor("#FF4757"))
             reconnectAttempts = 0
         }
     }
 
-    override fun onConnectionFailedRtmp(reason: String) {
+    override fun onConnectionFailed(reason: String) {
         updateStatusText("Falhou: $reason", Color.RED)
         if (isStreaming) attemptReconnect()
     }
 
-    override fun onNewBitrateRtmp(bitrate: Long) {
+    override fun onNewBitrate(bitrate: Long) {
         // Adaptive bitrate: reduce quality on poor connection
         runOnUiThread {
             binding.tvStatus.text = "🔴 AO VIVO · ${bitrate / 1024} kbps"
         }
     }
 
-    override fun onDisconnectRtmp() {
+    override fun onDisconnect() {
         updateStatusText("Desconectado", Color.YELLOW)
         if (isStreaming) attemptReconnect()
     }
 
-    override fun onAuthErrorRtmp() {
+    override fun onAuthError() {
         updateStatusText("Erro de autenticação! Verifique a chave.", Color.RED)
         stopStream()
         showToast("Chave de stream inválida ou não autorizada")
     }
 
-    override fun onAuthSuccessRtmp() {
+    override fun onAuthSuccess() {
         updateStatusText("Autenticado ✓", Color.GREEN)
     }
 

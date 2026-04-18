@@ -3,7 +3,7 @@
     "port": 1935,
     "chunk_size": 60000,
     "gop_cache": true,
-    "ping": 30,
+    "ping": 5,
     "ping_timeout": 60
   },
   "http": {
@@ -25,18 +25,18 @@
   },
   "admin": {
     "username": "admin",
-    "passwordHash": "$2a$10$1MjujZteXWU88k1RsdccReeptHLTbMSQXncrXJu5oZ3YQYXsybUBq",
+    "passwordHash": "$2a$10$ShBzLdUm9y1fIIcZzEwvZu/q2YcCCE9X5DekgE071ZS0upfkmrgbK",
     "jwtSecret": "CHANGE_THIS_TO_A_RANDOM_SECRET_STRING_IN_PRODUCTION"
   },
   "stream": {
     "app": "live",
     "allowedKeys": [
-      "7eabfbf8d96a4ee3"
+      "527659b583054c81"
     ],
     "keysMeta": {
-      "7eabfbf8d96a4ee3": {
-        "label": "Stream Principal",
-        "createdAt": "2026-04-18T00:09:42.512Z"
+      "527659b583054c81": {
+        "label": "IRL",
+        "createdAt": "2026-04-18T00:30:22.921Z"
       }
     }
   }

@@ -63,6 +63,10 @@ const nmsConfig = {
 
 const nms = new NodeMediaServer(nmsConfig);
 
+// ─── Session tracker (populated via NMS events) ───────────────────────────────
+const activeSessions = new Map();
+const WEAK_THRESHOLD_KBPS = 400;
+
 // ─── Auth Hook + Signal Hooks ─────────────────────────────────────────────────
 nms.on('prePublish', (id, StreamPath, args) => {
   const cfg = loadConfig();
@@ -81,11 +85,13 @@ nms.on('prePublish', (id, StreamPath, args) => {
 
 nms.on('postPublish', (id, StreamPath) => {
   console.log(`[NMS] Stream started: ${StreamPath}`);
+  activeSessions.set(id, { id, StreamPath, startedAt: Date.now() });
   broadcastSignal({ status: 'live', streamPath: StreamPath, lostAt: null });
 });
 
 nms.on('donePublish', (id, StreamPath) => {
   console.log(`[NMS] Stream ended: ${StreamPath}`);
+  activeSessions.delete(id);
   broadcastSignal({ status: 'lost', streamPath: StreamPath, lostAt: new Date().toISOString(), bitrate: 0 });
 
   // Auto-recover to 'offline' after 60s if no reconnect
@@ -96,23 +102,26 @@ nms.on('donePublish', (id, StreamPath) => {
   }, 60_000);
 });
 
-// Weak-signal detection: monitor bitrate via session polling
+// ─── Weak-signal detection: poll bitrate every 3s ───────────────────────────
+
 setInterval(() => {
   if (signalState.status !== 'live' && signalState.status !== 'weak') return;
-  const sessions = nms.getAllSessions();
-  if (!sessions || sessions.size === 0) return;
+  if (activeSessions.size === 0) return;
 
-  sessions.forEach((session) => {
-    if (!session.publishStreamPath) return;
-    const bitrateKbps = session.bitrate || 0; // kbps from NMS internal
-    const WEAK_THRESHOLD = 400; // kbps
+  activeSessions.forEach((info, id) => {
+    // getSession(id) is a valid NMS v2 method
+    const session = nms.getSession(id);
+    if (!session) { activeSessions.delete(id); return; }
 
-    if (bitrateKbps > 0 && bitrateKbps < WEAK_THRESHOLD && signalState.status === 'live') {
+    // node-media-server exposes bitrate in kbps on RTMPSession after stream starts
+    const bitrateKbps = typeof session.bitrate === 'number' ? session.bitrate : 0;
+
+    if (bitrateKbps > 0 && bitrateKbps < WEAK_THRESHOLD_KBPS && signalState.status === 'live') {
       broadcastSignal({ status: 'weak', bitrate: bitrateKbps });
-    } else if (bitrateKbps >= WEAK_THRESHOLD && signalState.status === 'weak') {
+    } else if (bitrateKbps >= WEAK_THRESHOLD_KBPS && signalState.status === 'weak') {
       broadcastSignal({ status: 'live', bitrate: bitrateKbps });
-    } else {
-      signalState.bitrate = bitrateKbps;
+    } else if (bitrateKbps > 0) {
+      signalState.bitrate = bitrateKbps; // silent update
     }
   });
 }, 3000);
