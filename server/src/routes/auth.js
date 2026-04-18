@@ -1,15 +1,9 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const path = require('path');
-const fs = require('fs');
+const { getSetting, upsertSetting } = require('../db');
 
 const router = express.Router();
-const CONFIG_PATH = path.join(__dirname, '..', '..', 'config.json');
-
-function loadConfig() {
-  return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-}
 
 /**
  * POST /api/auth/login
@@ -23,25 +17,27 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
   }
 
-  const cfg = loadConfig();
+  const storedUsername = getSetting('admin_username', 'admin');
+  const passwordHash   = getSetting('admin_password_hash', '');
+  const jwtSecret      = getSetting('admin_jwt_secret', process.env.JWT_SECRET || 'changeme');
 
-  if (username !== cfg.admin.username) {
+  if (username !== storedUsername) {
     return res.status(401).json({ error: 'Credenciais inválidas' });
   }
 
-  const isValid = await bcrypt.compare(password, cfg.admin.passwordHash);
+  const isValid = await bcrypt.compare(password, passwordHash);
   if (!isValid) {
     return res.status(401).json({ error: 'Credenciais inválidas' });
   }
 
-  const secret = process.env.JWT_SECRET || cfg.admin.jwtSecret;
+  const secret = process.env.JWT_SECRET || jwtSecret;
   const token = jwt.sign(
-    { username: cfg.admin.username, role: 'admin' },
+    { username: storedUsername, role: 'admin' },
     secret,
     { expiresIn: '24h' }
   );
 
-  res.json({ token, username: cfg.admin.username });
+  res.json({ token, username: storedUsername });
 });
 
 /**
@@ -59,17 +55,18 @@ router.post('/change-password', async (req, res) => {
     return res.status(400).json({ error: 'Senhas obrigatórias' });
   }
 
-  const cfg = loadConfig();
-  const isValid = await bcrypt.compare(currentPassword, cfg.admin.passwordHash);
+  const passwordHash = getSetting('admin_password_hash', '');
+  const isValid = await bcrypt.compare(currentPassword, passwordHash);
   if (!isValid) {
     return res.status(401).json({ error: 'Senha atual incorreta' });
   }
 
-  const newHash = await bcrypt.hash(newPassword, 10);
-  cfg.admin.passwordHash = newHash;
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'A nova senha deve ter pelo menos 6 caracteres' });
+  }
 
-  const fs2 = require('fs');
-  fs2.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+  const newHash = await bcrypt.hash(newPassword, 10);
+  upsertSetting('admin_password_hash', newHash);
 
   res.json({ message: 'Senha alterada com sucesso' });
 });

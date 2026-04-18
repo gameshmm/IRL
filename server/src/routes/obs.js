@@ -13,8 +13,37 @@ let obsState = {
   scenes: [],
   host: 'localhost',
   port: 4455,
-  password: ''
+  password: '',
+  reconnecting: false,
+  reconnectAttempts: 0
 };
+
+// ─── Auto-reconnect ────────────────────────────────────────────────────────────
+let reconnectTimer = null;
+const MAX_RECONNECT_DELAY_MS = 30000;
+
+function scheduleReconnect() {
+  if (reconnectTimer) return; // já agendado
+  const delay = Math.min(2000 * Math.pow(1.5, obsState.reconnectAttempts), MAX_RECONNECT_DELAY_MS);
+  obsState.reconnectAttempts++;
+  obsState.reconnecting = true;
+  console.log(`[OBS] Tentando reconectar em ${(delay / 1000).toFixed(1)}s (tentativa ${obsState.reconnectAttempts})...`);
+  reconnectTimer = setTimeout(async () => {
+    reconnectTimer = null;
+    if (obsState.connected) return; // já reconectou
+    try {
+      await obs.connect(`ws://${obsState.host}:${obsState.port}`, obsState.password);
+      obsState.connected = true;
+      obsState.reconnecting = false;
+      obsState.reconnectAttempts = 0;
+      await getOBSStatus();
+      console.log('[OBS] Reconectado com sucesso!');
+    } catch (err) {
+      console.warn(`[OBS] Falha ao reconectar: ${err.message}`);
+      scheduleReconnect();
+    }
+  }, delay);
+}
 
 async function getOBSStatus() {
   try {
@@ -53,9 +82,14 @@ router.post('/connect', async (req, res) => {
     obsState.password = password;
 
     obs.on('ConnectionClosed', () => {
+      const wasConnected = obsState.connected;
       obsState.connected = false;
       obsState.streaming = false;
       console.log('[OBS] Desconectado do OBS WebSocket');
+      // Só reconecta automaticamente se a desconexão não foi manual
+      if (wasConnected && obsState.password !== undefined) {
+        scheduleReconnect();
+      }
     });
 
     obs.on('StreamStateChanged', (data) => {
@@ -87,6 +121,10 @@ router.post('/connect', async (req, res) => {
 // ─── POST /api/obs/disconnect  ─────────────────────────────────────────────────
 router.post('/disconnect', async (req, res) => {
   try {
+    // Cancela reconexão automática antes de desconectar
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    obsState.reconnecting = false;
+    obsState.reconnectAttempts = 0;
     if (obsState.connected) {
       await obs.disconnect();
     }
@@ -100,7 +138,12 @@ router.post('/disconnect', async (req, res) => {
 // ─── GET /api/obs/status  ──────────────────────────────────────────────────────
 router.get('/status', async (req, res) => {
   if (!obsState.connected) {
-    return res.json({ connected: false, streaming: false, recording: false, currentScene: null, scenes: [] });
+    return res.json({
+      connected: false, streaming: false, recording: false,
+      currentScene: null, scenes: [],
+      reconnecting: obsState.reconnecting,
+      reconnectAttempts: obsState.reconnectAttempts
+    });
   }
 
   await getOBSStatus();

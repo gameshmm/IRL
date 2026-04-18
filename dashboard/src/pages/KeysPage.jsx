@@ -1,15 +1,26 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Key, Plus, Trash2, Copy, Check, RefreshCw, AlertCircle } from 'lucide-react';
+import { Key, Plus, Trash2, Copy, Check, RefreshCw, AlertCircle, Edit2, X, Link } from 'lucide-react';
 
-function KeyCard({ item, onDelete }) {
+function KeyCard({ item, rtmpBase, onDelete, onRename }) {
   const [copied, setCopied] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editLabel, setEditLabel] = useState(item.label);
+  const [saving, setSaving] = useState(false);
 
   const copyKey = async () => {
     await navigator.clipboard.writeText(item.key);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const copyRtmpUrl = async () => {
+    const url = `${rtmpBase}/${item.key}`;
+    await navigator.clipboard.writeText(url);
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2000);
   };
 
   const handleDelete = async () => {
@@ -19,6 +30,16 @@ function KeyCard({ item, onDelete }) {
     setDeleting(false);
   };
 
+  const handleRename = async () => {
+    if (!editLabel.trim() || editLabel === item.label) { setEditing(false); return; }
+    setSaving(true);
+    const ok = await onRename(item.key, editLabel.trim());
+    setSaving(false);
+    if (ok) setEditing(false);
+  };
+
+  const rtmpUrl = `${rtmpBase}/${item.key}`;
+
   return (
     <div className="key-card card">
       <div className="key-card-top">
@@ -26,30 +47,60 @@ function KeyCard({ item, onDelete }) {
           <div className="key-card-icon">
             <Key size={16} />
           </div>
-          <div>
-            <p className="key-card-label">{item.label}</p>
-            <p className="key-card-date">
-              Criada em: {item.createdAt ? new Date(item.createdAt).toLocaleString('pt-BR') : '—'}
-            </p>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {editing ? (
+              <div className="flex gap-2 items-center">
+                <input
+                  className="form-input"
+                  style={{ padding: '4px 10px', fontSize: '0.88rem', flex: 1 }}
+                  value={editLabel}
+                  onChange={e => setEditLabel(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') setEditing(false); }}
+                  autoFocus
+                />
+                <button className="btn btn-primary btn-sm btn-icon" onClick={handleRename} disabled={saving}>
+                  {saving ? <span className="loader" style={{ width: 13, height: 13 }} /> : <Check size={14} />}
+                </button>
+                <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setEditing(false)}>
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="key-card-label">{item.label}</p>
+                <p className="key-card-date">
+                  Criada em: {item.createdAt ? new Date(item.createdAt).toLocaleString('pt-BR') : '—'}
+                </p>
+              </>
+            )}
           </div>
         </div>
-        <div className="key-card-actions">
-          <button
-            className="btn btn-ghost btn-sm btn-icon"
-            onClick={copyKey}
-            title="Copiar chave"
-          >
-            {copied ? <Check size={15} color="var(--accent-green)" /> : <Copy size={15} />}
-          </button>
-          <button
-            className="btn btn-danger btn-sm btn-icon"
-            onClick={handleDelete}
-            disabled={deleting}
-            title="Remover chave"
-          >
-            {deleting ? <span className="loader" style={{ width: 14, height: 14 }} /> : <Trash2 size={15} />}
-          </button>
-        </div>
+        {!editing && (
+          <div className="key-card-actions">
+            <button
+              className="btn btn-ghost btn-sm btn-icon"
+              onClick={() => { setEditLabel(item.label); setEditing(true); }}
+              title="Renomear chave"
+            >
+              <Edit2 size={15} />
+            </button>
+            <button
+              className="btn btn-ghost btn-sm btn-icon"
+              onClick={copyKey}
+              title="Copiar chave"
+            >
+              {copied ? <Check size={15} color="var(--accent-green)" /> : <Copy size={15} />}
+            </button>
+            <button
+              className="btn btn-danger btn-sm btn-icon"
+              onClick={handleDelete}
+              disabled={deleting}
+              title="Remover chave"
+            >
+              {deleting ? <span className="loader" style={{ width: 14, height: 14 }} /> : <Trash2 size={15} />}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="key-card-value">
@@ -57,9 +108,22 @@ function KeyCard({ item, onDelete }) {
       </div>
 
       <div style={{ marginTop: 12 }}>
-        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>URL de Stream RTMP:</p>
+        <div className="flex items-center" style={{ marginBottom: 4, gap: 8 }}>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>URL de Stream RTMP:</p>
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ padding: '2px 8px', fontSize: '0.7rem' }}
+            onClick={copyRtmpUrl}
+            title="Copiar URL RTMP completa"
+          >
+            {copiedUrl
+              ? <><Check size={11} color="var(--accent-green)" /> Copiado!</>
+              : <><Link size={11} /> Copiar URL</>
+            }
+          </button>
+        </div>
         <code className="code-block" style={{ fontSize: '0.72rem' }}>
-          rtmp://&lt;servidor&gt;:1935/live/{item.key}
+          {rtmpUrl}
         </code>
       </div>
     </div>
@@ -74,6 +138,7 @@ export default function KeysPage() {
   const [newLabel, setNewLabel] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [toast, setToast] = useState(null);
+  const [rtmpBase, setRtmpBase] = useState('rtmp://<servidor>:1935/live');
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -86,6 +151,13 @@ export default function KeysPage() {
       const res = await axios.get('/api/keys');
       setKeys(res.data.keys);
       setError(null);
+      // Detecta IP do servidor para montar URL RTMP real
+      try {
+        const cfgRes = await axios.get('/api/config');
+        const port = cfgRes.data?.rtmp?.port || 1935;
+        const host = window.location.hostname;
+        setRtmpBase(`rtmp://${host}:${port}/live`);
+      } catch (_) {}
     } catch (err) {
       setError('Erro ao carregar as chaves. Verifique a conexão com o servidor.');
     } finally {
@@ -117,6 +189,18 @@ export default function KeysPage() {
       showToast('Chave removida com sucesso');
     } catch (err) {
       showToast('Erro ao remover chave', 'error');
+    }
+  };
+
+  const renameKey = async (key, label) => {
+    try {
+      await axios.put(`/api/keys/${key}`, { label });
+      setKeys(prev => prev.map(k => k.key === key ? { ...k, label } : k));
+      showToast(`Chave renomeada para "${label}"`);
+      return true;
+    } catch (err) {
+      showToast('Erro ao renomear chave', 'error');
+      return false;
     }
   };
 
@@ -206,7 +290,7 @@ export default function KeysPage() {
       ) : (
         <div className="keys-grid">
           {keys.map(item => (
-            <KeyCard key={item.key} item={item} onDelete={deleteKey} />
+            <KeyCard key={item.key} item={item} rtmpBase={rtmpBase} onDelete={deleteKey} onRename={renameKey} />
           ))}
         </div>
       )}

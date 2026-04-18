@@ -23,14 +23,7 @@
       }
     ]
   },
-  "admin": {
-    "username": "admin",
-    "passwordHash": "$2a$10$ShBzLdUm9y1fIIcZzEwvZu/q2YcCCE9X5DekgE071ZS0upfkmrgbK",
-    "jwtSecret": "CHANGE_THIS_TO_A_RANDOM_SECRET_STRING_IN_PRODUCTION"
-  },
   "stream": {
-    "app": "live",
-    "allowedKeys": [],
-    "keysMeta": {}
+    "app": "live"
   }
 }

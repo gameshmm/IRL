@@ -6,11 +6,19 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // API REST e auth
+      // API REST, auth, logs SSE e status SSE
       '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,
-        secure: false
+        secure: false,
+        // Garante que SSE (text/event-stream) não seja bufferizado
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            if (proxyRes.headers['content-type']?.includes('text/event-stream')) {
+              proxyRes.headers['x-accel-buffering'] = 'no';
+            }
+          });
+        }
       },
       // SSE de sinal e status (usados pelo player e pelo overlay)
       '/signal': {
@@ -25,7 +33,6 @@ export default defineConfig({
         secure: false
       },
       // HLS streams (node-media-server na porta 8000)
-      // Proxy via Vite resolve CORS e evita construir URL com porta diferente
       '/live': {
         target: 'http://localhost:8000',
         changeOrigin: true,

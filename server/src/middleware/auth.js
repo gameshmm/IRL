@@ -1,25 +1,27 @@
 const jwt = require('jsonwebtoken');
-const path = require('path');
-const fs = require('fs');
-
-const CONFIG_PATH = path.join(__dirname, '..', '..', 'config.json');
-
-function loadConfig() {
-  return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-}
+const { getSetting } = require('../db');
 
 /**
  * Middleware: verifica token JWT Bearer
+ * Aceita token via header Authorization: Bearer <token>
+ * OU via query param ?token=<token> (para EventSource/SSE)
  */
 function verifyToken(req, res, next) {
   const authHeader = req.headers['authorization'];
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  let token = null;
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  } else if (req.query && req.query.token) {
+    token = req.query.token;
+  }
+
+  if (!token) {
     return res.status(401).json({ error: 'Token não fornecido' });
   }
 
-  const token = authHeader.split(' ')[1];
-  const cfg = loadConfig();
-  const secret = process.env.JWT_SECRET || cfg.admin.jwtSecret;
+  // Busca o secret do banco de dados (com fallback para env var)
+  const secret = process.env.JWT_SECRET || getSetting('admin_jwt_secret', 'changeme');
 
   try {
     const decoded = jwt.verify(token, secret);

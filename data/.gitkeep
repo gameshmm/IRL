@@ -1,0 +1,3 @@
+# Este diretório é criado automaticamente pelo Docker para dados persistentes.
+# O arquivo irl.db (banco SQLite) fica aqui quando rodando via Docker.
+# Não apague este arquivo — ele contém suas chaves de stream e histórico.

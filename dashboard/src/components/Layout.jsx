@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import {
   LayoutDashboard, Key, Settings, Tv2, LogOut, Zap,
   Menu, X, ChevronRight, Activity, MonitorPlay,
-  WifiOff, Wifi, AlertTriangle
+  WifiOff, Wifi, AlertTriangle, Terminal, Sun, Moon, BookOpen
 } from 'lucide-react';
 
 const navItems = [
@@ -12,6 +13,8 @@ const navItems = [
   { to: '/player', icon: Tv2, label: 'Monitor ao Vivo' },
   { to: '/keys', icon: Key, label: 'Chaves de Stream' },
   { to: '/obs', icon: MonitorPlay, label: 'Controle OBS' },
+  { to: '/history', icon: BookOpen, label: 'Histórico' },
+  { to: '/logs', icon: Terminal, label: 'Logs' },
   { to: '/settings', icon: Settings, label: 'Configurações' },
 ];
 
@@ -24,6 +27,7 @@ const SIGNAL_TOAST_CONFIG = {
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [serverStatus, setServerStatus] = useState('checking');
@@ -135,6 +139,14 @@ export default function Layout() {
               </div>
             )}
           </div>
+          <button
+            className="sidebar-logout-btn"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Tema Claro' : 'Tema Escuro'}
+            style={{ marginRight: 4 }}
+          >
+            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
           <button
             className="sidebar-logout-btn"
             onClick={handleLogout}

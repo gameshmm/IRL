@@ -36,7 +36,10 @@ function ActionBtn({ icon: Icon, label, onClick, variant = 'ghost', disabled, lo
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function OBSPage() {
-  const [obs, setObs] = useState({ connected: false, streaming: false, recording: false, currentScene: null, scenes: [] });
+  const [obs, setObs] = useState({
+    connected: false, streaming: false, recording: false,
+    currentScene: null, scenes: [], reconnecting: false, reconnectAttempts: 0
+  });
   const [host, setHost] = useState('localhost');
   const [port, setPort] = useState('4455');
   const [password, setPassword] = useState('');
@@ -182,6 +185,12 @@ export default function OBSPage() {
 
           {!obs.connected ? (
             <div className="obs-connect-form">
+              {obs.reconnecting && (
+                <div className="obs-reconnecting-bar">
+                  <span className="loader" style={{ width: 13, height: 13 }} />
+                  Reconectando automaticamente... (tentativa {obs.reconnectAttempts})
+                </div>
+              )}
               <div className="obs-connect-info">
                 <AlertCircle size={14} />
                 <p>Ative o WebSocket no OBS: <strong>Ferramentas → WebSocket Server Settings → Enable</strong></p>
@@ -460,6 +469,12 @@ export default function OBSPage() {
 
         /* Connect */
         .obs-connect-form { display: flex; flex-direction: column; gap: 14px; }
+        .obs-reconnecting-bar {
+          display: flex; align-items: center; gap: 8px;
+          background: rgba(108,99,255,0.1); border: 1px solid rgba(108,99,255,0.25);
+          border-radius: var(--radius-sm); padding: 10px 14px;
+          font-size: 0.8rem; color: var(--accent-primary); font-weight: 600;
+        }
         .obs-connect-info {
           display: flex; align-items: flex-start; gap: 8px;
           background: rgba(108,99,255,0.08); border: 1px solid rgba(108,99,255,0.15);

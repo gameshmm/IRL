@@ -1,0 +1,45 @@
+services:
+  irl-stream:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: irl-stream
+    restart: unless-stopped
+
+    ports:
+      - "1935:1935"   # RTMP — celular envia o stream aqui
+      - "8000:8000"   # HTTP-FLV / HLS — OBS e player
+      - "3001:3001"   # API REST + Dashboard web
+
+    environment:
+      - NODE_ENV=production
+      - API_PORT=3001
+      # ⚠️  MUDE ESTE VALOR antes de expor na internet!
+      - JWT_SECRET=${JWT_SECRET:-troque_esta_chave_secreta}
+
+    volumes:
+      # Banco de dados SQLite — persiste entre reinícios e atualizações
+      - ./data/irl.db:/app/server/irl.db
+      # Configurações de rede (portas RTMP/HTTP/trans)
+      - ./server/config.json:/app/server/config.json:ro
+      # Mídias geradas em runtime (HLS segments, etc.)
+      - ./data/media:/app/server/media
+
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/signal/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Limites de recursos (ajuste conforme seu servidor)
+    deploy:
+      resources:
+        limits:
+          memory: 512M

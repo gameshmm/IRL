@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import {
   Activity, Cpu, MemoryStick, Wifi, Radio,
-  Clock, Server, TrendingUp, AlertCircle
+  Clock, Server, TrendingUp, AlertCircle, Zap, WifiOff
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -29,6 +29,9 @@ export default function DashboardPage() {
   const [error, setError] = useState(null);
   const [cpuHistory, setCpuHistory] = useState([]);
   const [memHistory, setMemHistory] = useState([]);
+  const [liveSignal, setLiveSignal] = useState({ status: 'offline', bitrate: 0, streamPath: null });
+  const [streamAlert, setStreamAlert] = useState(null); // 'weak' | 'lost' | null
+  const prevSignalRef = useRef('offline');
 
   const fetchStatus = async () => {
     try {
@@ -57,6 +60,31 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // SSE para dados de sinal em tempo real (substitui polling do status do stream)
+  useEffect(() => {
+    const es = new EventSource('/api/status/events');
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.signal) {
+          setLiveSignal(data.signal);
+          const prev = prevSignalRef.current;
+          const cur = data.signal.status;
+          // Alerta quando o sinal cai (de live/weak para lost)
+          if ((prev === 'live' || prev === 'weak') && cur === 'lost') {
+            setStreamAlert('lost');
+          } else if (cur === 'weak' && prev === 'live') {
+            setStreamAlert('weak');
+          } else if (cur === 'live') {
+            setStreamAlert(null);
+          }
+          prevSignalRef.current = cur;
+        }
+      } catch (_) {}
+    };
+    return () => es.close();
+  }, []);
+
   const formatUptime = (u) => {
     if (!u) return '—';
     const { hours, minutes, seconds } = u;
@@ -69,6 +97,29 @@ export default function DashboardPage() {
         <h1>Dashboard</h1>
         <p>Monitoramento em tempo real do servidor IRL Stream</p>
       </div>
+
+      {/* Alerta de stream caído */}
+      {streamAlert === 'lost' && (
+        <div className="stream-alert stream-alert--lost">
+          <WifiOff size={18} />
+          <div>
+            <strong>Stream Caído!</strong> O sinal foi perdido{liveSignal.streamPath ? ` em ${liveSignal.streamPath}` : ''}.
+            Verifique a conexão do dispositivo de transmissão.
+          </div>
+          <button className="stream-alert-close" onClick={() => setStreamAlert(null)}>✕</button>
+        </div>
+      )}
+      {streamAlert === 'weak' && (
+        <div className="stream-alert stream-alert--weak">
+          <Wifi size={18} />
+          <div>
+            <strong>Sinal Fraco!</strong>
+            {liveSignal.bitrate > 0 ? ` Bitrate atual: ${liveSignal.bitrate >= 1000 ? `${(liveSignal.bitrate/1000).toFixed(1)} Mbps` : `${liveSignal.bitrate} kbps`}.` : ''}
+            Verifique a conexão de internet do transmissor.
+          </div>
+          <button className="stream-alert-close" onClick={() => setStreamAlert(null)}>✕</button>
+        </div>
+      )}
 
       {error && (
         <div className="dashboard-error">
@@ -123,6 +174,16 @@ export default function DashboardPage() {
           unit=" GB"
           color="green"
           subtitle="Memória disponível"
+        />
+        <StatCard
+          icon={Zap}
+          label="Bitrate"
+          value={liveSignal.bitrate >= 1000
+            ? `${(liveSignal.bitrate / 1000).toFixed(1)}`
+            : (liveSignal.bitrate || '—')}
+          unit={liveSignal.bitrate >= 1000 ? ' Mbps' : (liveSignal.bitrate > 0 ? ' kbps' : '')}
+          color={liveSignal.status === 'live' ? 'green' : liveSignal.status === 'weak' ? 'orange' : 'muted'}
+          subtitle={liveSignal.status === 'live' ? '🟢 Transmitindo' : liveSignal.status === 'weak' ? '⚠ Sinal fraco' : 'Nenhum stream'}
         />
       </div>
 
@@ -216,6 +277,30 @@ export default function DashboardPage() {
           font-size: 0.875rem;
           margin-bottom: 24px;
         }
+        .stream-alert {
+          display: flex; align-items: center; gap: 12px;
+          border-radius: var(--radius-md);
+          padding: 14px 18px;
+          font-size: 0.875rem;
+          margin-bottom: 20px;
+          animation: fadeInUp 0.3s ease;
+        }
+        .stream-alert--lost {
+          background: rgba(255,71,87,0.12);
+          border: 1px solid rgba(255,71,87,0.35);
+          color: var(--accent-red);
+        }
+        .stream-alert--weak {
+          background: rgba(255,165,2,0.1);
+          border: 1px solid rgba(255,165,2,0.35);
+          color: var(--accent-orange);
+        }
+        .stream-alert-close {
+          margin-left: auto; background: none; border: none;
+          cursor: pointer; opacity: 0.6; font-size: 0.9rem;
+          color: inherit; transition: opacity 0.15s;
+        }
+        .stream-alert-close:hover { opacity: 1; }
         .stats-grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

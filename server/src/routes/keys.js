@@ -1,35 +1,23 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const path = require('path');
-const fs = require('fs');
+const { db } = require('../db');
 
 const router = express.Router();
-const CONFIG_PATH = path.join(__dirname, '..', '..', 'config.json');
 
-function loadConfig() {
-  return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-}
-
-function saveConfig(cfg) {
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
-}
+// Statements preparados (compilados uma vez, executados N vezes — melhor performance)
+const stmtAll    = db.prepare('SELECT key, label, created_at AS createdAt FROM stream_keys ORDER BY created_at ASC');
+const stmtGet    = db.prepare('SELECT key, label, created_at AS createdAt FROM stream_keys WHERE key = ?');
+const stmtInsert = db.prepare('INSERT INTO stream_keys (key, label, created_at) VALUES (@key, @label, @createdAt)');
+const stmtUpdate = db.prepare('UPDATE stream_keys SET label = @label WHERE key = @key');
+const stmtDelete = db.prepare('DELETE FROM stream_keys WHERE key = ?');
 
 /**
  * GET /api/keys
  * Retorna lista de chaves de stream com metadados
  */
 router.get('/', (req, res) => {
-  const cfg = loadConfig();
-  const keys = cfg.stream.allowedKeys || [];
-  const meta = cfg.stream.keysMeta || {};
-
-  const result = keys.map(key => ({
-    key,
-    label: meta[key]?.label || key,
-    createdAt: meta[key]?.createdAt || null
-  }));
-
-  res.json({ keys: result });
+  const keys = stmtAll.all();
+  res.json({ keys });
 });
 
 /**
@@ -38,27 +26,38 @@ router.get('/', (req, res) => {
  * Cria uma nova chave de stream
  */
 router.post('/', (req, res) => {
-  const cfg = loadConfig();
+  const { label } = req.body;
+  const count = db.prepare('SELECT COUNT(*) AS n FROM stream_keys').get().n;
+
+  const newKey   = uuidv4().replace(/-/g, '').substring(0, 16);
+  const newLabel = (label || `Stream ${count + 1}`).trim();
+  const createdAt = new Date().toISOString();
+
+  stmtInsert.run({ key: newKey, label: newLabel, createdAt });
+
+  res.status(201).json({ key: newKey, label: newLabel, createdAt });
+});
+
+/**
+ * PUT /api/keys/:key
+ * Body: { label }
+ * Renomeia o label de uma chave de stream
+ */
+router.put('/:key', (req, res) => {
+  const { key } = req.params;
   const { label } = req.body;
 
-  const newKey = uuidv4().replace(/-/g, '').substring(0, 16);
+  if (!label || !label.trim()) {
+    return res.status(400).json({ error: 'label é obrigatório' });
+  }
 
-  if (!cfg.stream.allowedKeys) cfg.stream.allowedKeys = [];
-  if (!cfg.stream.keysMeta) cfg.stream.keysMeta = {};
+  const existing = stmtGet.get(key);
+  if (!existing) {
+    return res.status(404).json({ error: 'Chave não encontrada' });
+  }
 
-  cfg.stream.allowedKeys.push(newKey);
-  cfg.stream.keysMeta[newKey] = {
-    label: label || `Stream ${cfg.stream.allowedKeys.length}`,
-    createdAt: new Date().toISOString()
-  };
-
-  saveConfig(cfg);
-
-  res.status(201).json({
-    key: newKey,
-    label: cfg.stream.keysMeta[newKey].label,
-    createdAt: cfg.stream.keysMeta[newKey].createdAt
-  });
+  stmtUpdate.run({ label: label.trim(), key });
+  res.json({ key, label: label.trim() });
 });
 
 /**
@@ -67,19 +66,13 @@ router.post('/', (req, res) => {
  */
 router.delete('/:key', (req, res) => {
   const { key } = req.params;
-  const cfg = loadConfig();
 
-  const idx = (cfg.stream.allowedKeys || []).indexOf(key);
-  if (idx === -1) {
+  const existing = stmtGet.get(key);
+  if (!existing) {
     return res.status(404).json({ error: 'Chave não encontrada' });
   }
 
-  cfg.stream.allowedKeys.splice(idx, 1);
-  if (cfg.stream.keysMeta && cfg.stream.keysMeta[key]) {
-    delete cfg.stream.keysMeta[key];
-  }
-
-  saveConfig(cfg);
+  stmtDelete.run(key);
   res.json({ message: 'Chave removida com sucesso' });
 });
 

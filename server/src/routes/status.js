@@ -21,24 +21,19 @@ router.get('/', async (req, res) => {
     const minutes = Math.floor((uptime % 3600) / 60);
     const seconds = Math.floor(uptime % 60);
 
-    // Tenta obter sessões ativas do NMS
-    let activeSessions = [];
+    // Obtém sessões ativas do Map mantido pelo index.js (fonte autoritativa)
+    let activeSessionsList = [];
     try {
-      const { nms } = require('../index');
-      const sessions = nms.getAllSessions();
-      if (sessions) {
-        sessions.forEach((session, id) => {
-          if (session.publishStreamPath) {
-            activeSessions.push({
-              id,
-              path: session.publishStreamPath,
-              startTime: session.startTimestamp || null
-            });
-          }
+      const { activeSessions } = require('../index');
+      activeSessions.forEach((session, id) => {
+        activeSessionsList.push({
+          id,
+          path: session.StreamPath,
+          startTime: session.startedAtISO || null
         });
-      }
+      });
     } catch (e) {
-      // NMS ainda não disponível
+      // index.js ainda não disponível na inicialização
     }
 
     res.json({
@@ -56,8 +51,8 @@ router.get('/', async (req, res) => {
         freeGb: (memInfo.freeMemMb / 1024).toFixed(2)
       },
       streams: {
-        active: activeSessions.length,
-        sessions: activeSessions
+        active: activeSessionsList.length,
+        sessions: activeSessionsList
       },
       platform: os.platform(),
       hostname: os.hostname()

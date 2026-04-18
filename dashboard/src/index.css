@@ -4,7 +4,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
-  /* Color Palette */
+  /* Color Palette — Dark (padrão) */
   --bg-base: #0a0b0f;
   --bg-surface: #111318;
   --bg-elevated: #1a1d26;
@@ -45,6 +45,25 @@
   --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
   --shadow-glow: 0 0 30px rgba(108, 99, 255, 0.15);
   --shadow-glow-green: 0 0 30px rgba(0, 230, 118, 0.15);
+}
+
+/* ─── Tema Claro ────────────────────────────────────────────── */
+[data-theme='light'] {
+  --bg-base: #f0f2f8;
+  --bg-surface: #ffffff;
+  --bg-elevated: #e8ebf5;
+  --bg-glass: rgba(255, 255, 255, 0.85);
+  --bg-glass-hover: rgba(240, 242, 248, 0.95);
+
+  --text-primary: #1a1d2e;
+  --text-secondary: #4a5270;
+  --text-muted: #9099b3;
+
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-glow: rgba(108, 99, 255, 0.4);
+
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.08);
+  --shadow-glow: 0 0 30px rgba(108, 99, 255, 0.12);
 }
 
 *, *::before, *::after {
