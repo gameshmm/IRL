@@ -6,7 +6,20 @@ const path = require('path');
 const fs = require('fs');
 
 // ─── Load Configuration ────────────────────────────────────────────────────────
-const CONFIG_PATH = path.join(__dirname, '..', 'config.json');
+const CONFIG_PATH   = path.join(__dirname, '..', 'config.json');
+const EXAMPLE_PATH  = path.join(__dirname, '..', 'config.example.json');
+
+// Gera config.json automaticamente na primeira execução
+if (!fs.existsSync(CONFIG_PATH)) {
+  if (!fs.existsSync(EXAMPLE_PATH)) {
+    console.error('[CONFIG] ERRO: config.example.json não encontrado! Reinstale o projeto.');
+    process.exit(1);
+  }
+  fs.copyFileSync(EXAMPLE_PATH, CONFIG_PATH);
+  console.log('[CONFIG] config.json criado automaticamente com valores padrão.');
+  console.log('[CONFIG] Login padrão: admin / admin123');
+  console.log('[CONFIG] Acesse o painel e altere a senha nas Configurações!');
+}
 
 function loadConfig() {
   const raw = fs.readFileSync(CONFIG_PATH, 'utf-8');

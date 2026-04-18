@@ -57,14 +57,6 @@ if not exist ".env" (
     echo  [OK] Arquivo .env criado!
 )
 
-:: Cria o config.json a partir do exemplo se nao existir
-if not exist "config.json" (
-    echo  Criando configuracao padrao...
-    copy "config.example.json" "config.json" >nul
-    echo  [OK] config.json criado com valores padrao!
-    echo       Login: admin / admin123
-)
-
 echo.
 echo  =========================================
 echo    Instalacao concluida com sucesso!
