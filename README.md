@@ -138,24 +138,115 @@ O overlay aparece **automaticamente** no OBS quando o sinal do celular cai ou fi
 
 ---
 
-## 🌐 Como saber meu IP?
+## 🌐 Como o celular na rua se conecta ao PC em casa?
 
-### Se você usa Tailscale (recomendado):
-> O Tailscale conecta seu celular ao PC sem abrir portas no roteador.
+Quando você sai de casa, o celular muda da sua rede Wi-Fi para o 4G/5G. Para que o PrismLive consiga enviar o vídeo para o seu PC, os dois precisam se "enxergar" pela internet.
 
-1. Instale o Tailscale no PC: https://tailscale.com/download
-2. Instale o **Tailscale** no celular (Play Store / App Store)
-3. Faça login com a **mesma conta** nos dois dispositivos
-4. O IP do seu PC vai aparecer no app, algo como `100.x.x.x`
-5. Use esse IP no PrismLive
+Existem duas formas de fazer isso:
 
-### Se você quer abrir porta no roteador:
+| Método | Dificuldade | Segurança |
+|--------|------------|-----------|
+| 🥇 **Tailscale VPN** (recomendado) | Fácil | Alta |
+| ⚙️ Port Forwarding no roteador | Média | Média |
+
+---
+
+## 🔵 Tutorial Tailscale (Recomendado)
+
+> O Tailscale cria uma rede privada entre seus dispositivos, como se eles estivessem na mesma rede Wi-Fi, mesmo estando em lugares diferentes. É gratuito para uso pessoal.
+
+### Passo 1 — Criar uma conta gratuita
+
+1. Acesse: https://tailscale.com/
+2. Clique em **"Get started"**
+3. Escolha fazer login com **Google**, **Microsoft** ou **GitHub** (mais fácil)
+4. Pronto — sua conta está criada!
+
+---
+
+### Passo 2 — Instalar o Tailscale no PC (onde fica o servidor)
+
+1. Acesse: https://tailscale.com/download/windows
+2. Clique em **"Download for Windows"**
+3. Execute o instalador (Next → Next → Install)
+4. Após instalar, o ícone do Tailscale aparecerá na bandeja do sistema (canto inferior direito)
+5. Clique no ícone → **"Log in"** → faça login com a mesma conta criada no Passo 1
+6. O PC agora está na sua rede Tailscale ✅
+
+---
+
+### Passo 3 — Instalar o Tailscale no celular
+
+**Android:**
+1. Abra a Play Store
+2. Busque por **"Tailscale"** ou acesse: https://play.google.com/store/apps/details?id=com.tailscale.ipn.android
+3. Instale e abra o app
+4. Toque em **"Log in"** → faça login com a **mesma conta** do PC
+5. Ative a VPN quando solicitado (toque em "OK")
+6. O celular agora está na sua rede Tailscale ✅
+
+**iPhone:**
+1. Abra a App Store
+2. Busque por **"Tailscale"**
+3. Instale e faça login com a mesma conta
+
+---
+
+### Passo 4 — Descobrir o IP do seu PC no Tailscale
+
+**Opção A — Pelo app do celular:**
+1. Abra o app Tailscale no celular
+2. Você verá uma lista de dispositivos
+3. O seu PC vai aparecer com um IP como `100.x.x.x`
+4. Esse é o IP que você vai usar no PrismLive!
+
+**Opção B — Pelo PC:**
+1. Clique no ícone do Tailscale na bandeja (canto inferior direito)
+2. Seu IP Tailscale aparece logo abaixo do nome do dispositivo
+3. Algo como: `100.64.0.5`
+
+---
+
+### Passo 5 — Testar a conexão
+
+Antes de sair de casa, verifique se está funcionando:
+
+1. **No celular**, desative o Wi-Fi temporariamente (para simular o 4G)
+2. Abra o PrismLive e configure:
+   - URL: `rtmp://100.x.x.x:1935/live` ← use o IP do Tailscale do seu PC
+   - Chave: a que você gerou no painel
+3. Toque em **Ir ao Vivo** — se conectar, está tudo certo!
+4. Reative o Wi-Fi no celular
+
+> ✅ **Dica:** O Tailscale funciona automaticamente, mesmo quando você troca de rede (Wi-Fi → 4G, muda de operadora, etc.)
+
+---
+
+### Resumo rápido do Tailscale
+
+```
+1. Criar conta em tailscale.com (grátis)
+2. Instalar no PC + fazer login
+3. Instalar no celular + fazer login com a MESMA conta
+4. Pegar o IP do PC no app (algo como 100.x.x.x)
+5. Usar esse IP no PrismLive
+```
+
+---
+
+## ⚙️ Alternativa: Abrir porta no roteador
+
+> Use esta opção **apenas** se não quiser usar o Tailscale.
+
 1. Abra o CMD e digite: `ipconfig`
-2. Anote o **"Endereço IPv4"** (ex: `192.168.1.100`)
-3. Esse é seu IP local — funciona somente na mesma rede Wi-Fi
-4. Para usar da rua, você precisa abrir as portas **1935 (TCP)** no seu roteador
+2. Anote o **"Endereço IPv4"** (ex: `192.168.1.100`) — este é seu IP interno
+3. Acesse o roteador (geralmente em `192.168.1.1` no navegador)
+4. Procure por **"Port Forwarding"** ou **"Redirecionamento de Portas"**
+5. Crie uma regra para a porta **1935 (TCP)** apontando para o IP do seu PC
+6. Descubra seu IP externo em: https://meuip.com.br
+7. Use esse IP externo no PrismLive: `rtmp://IP-EXTERNO:1935/live`
 
-> ⚠️ Abrir portas no roteador pode ser um risco de segurança. **Tailscale é mais seguro.**
+> ⚠️ **Atenção:** Abrir portas expõe seu PC à internet. Usando autenticação por chave de stream o risco é reduzido, mas o Tailscale continua sendo a opção mais segura.
 
 ---
 
