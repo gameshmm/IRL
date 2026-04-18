@@ -56,8 +56,8 @@ Celular (PrismLive)  →  Seu PC (Servidor IRL)  →  OBS  →  Twitch / YouTube
 **Opção A — Com Git (recomendado):**
 ```
 Abra o PowerShell ou CMD e digite:
-git clone https://github.com/SEU_USUARIO/irl-stream.git
-cd irl-stream
+git clone https://github.com/gameshmm/irl.git
+cd irl
 ```
 
 **Opção B — Sem Git:**
@@ -116,7 +116,7 @@ cd irl-stream
 2. Vá em **Fontes** → **+** → **Fonte de Mídia**
 3. Marque **"Arquivo de rede"** e cole a URL:
    ```
-   http://localhost:8000/live/SUA_CHAVE.flv
+   http://localhost:8000/live/SUA_CHAVE
    ```
    > Substitua `SUA_CHAVE` pela chave gerada no painel
 4. Marque **"Reiniciar quando estiver ativo"** e **"Mostrar somente quando ativo"**
