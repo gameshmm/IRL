@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -29,7 +29,6 @@ export default function Layout() {
   const [serverStatus, setServerStatus] = useState('checking');
   const [signal, setSignal] = useState({ status: 'offline', bitrate: 0 });
   const [toastVisible, setToastVisible] = useState(false);
-  const hideTimerRef = useRef(null);
 
   // Polling do servidor
   useEffect(() => {
@@ -54,18 +53,16 @@ export default function Layout() {
       try {
         const data = JSON.parse(e.data);
         setSignal(data);
-        const showToast = data.status === 'weak' || data.status === 'lost';
-        setToastVisible(showToast);
-        // Sinal perdido: esconde automaticamente após 8s
-        if (data.status === 'lost') {
-          if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-          hideTimerRef.current = setTimeout(() => setToastVisible(false), 8000);
+        if (data.status === 'weak' || data.status === 'lost') {
+          // Mostra o toast — "lost" é persistente até reconectar
+          setToastVisible(true);
         } else if (data.status === 'live') {
+          // Só some quando o sinal voltar
           setToastVisible(false);
         }
       } catch (_) {}
     };
-    return () => { es.close(); if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
+    return () => es.close();
   }, []);
 
   const handleLogout = () => {
@@ -174,7 +171,11 @@ export default function Layout() {
                 </span>
               )}
             </div>
-            <button className="signal-toast-close" onClick={() => setToastVisible(false)}>✕</button>
+            <button
+              className="signal-toast-close"
+              style={{ display: signal.status === 'lost' ? 'none' : undefined }}
+              onClick={() => setToastVisible(false)}
+            >✕</button>
           </div>
         );
       })()}

@@ -105,14 +105,8 @@ nms.on('postPublish', (id, StreamPath) => {
 nms.on('donePublish', (id, StreamPath) => {
   console.log(`[NMS] Stream encerrado: ${StreamPath}`);
   activeSessions.delete(id);
+  // Mantém status 'lost' indefinidamente até o stream reconectar
   broadcastSignal({ status: 'lost', streamPath: StreamPath, lostAt: new Date().toISOString(), bitrate: 0 });
-
-  // Volta para 'offline' após 60s se não reconectar
-  setTimeout(() => {
-    if (signalState.status === 'lost') {
-      broadcastSignal({ status: 'offline', streamPath: null });
-    }
-  }, 60_000);
 });
 
 // ─── Weak-signal detection: poll bitrate every 2s ───────────────────────────
