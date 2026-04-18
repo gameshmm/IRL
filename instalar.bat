@@ -52,9 +52,17 @@ echo.
 :: Cria o .env se nao existir
 cd /d "%~dp0server"
 if not exist ".env" (
-    echo  Criando arquivo de configuracao...
+    echo  Criando arquivo de variaveis de ambiente...
     copy ".env.example" ".env" >nul
     echo  [OK] Arquivo .env criado!
+)
+
+:: Cria o config.json a partir do exemplo se nao existir
+if not exist "config.json" (
+    echo  Criando configuracao padrao...
+    copy "config.example.json" "config.json" >nul
+    echo  [OK] config.json criado com valores padrao!
+    echo       Login: admin / admin123
 )
 
 echo.

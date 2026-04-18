@@ -30,14 +30,7 @@
   },
   "stream": {
     "app": "live",
-    "allowedKeys": [
-      "527659b583054c81"
-    ],
-    "keysMeta": {
-      "527659b583054c81": {
-        "label": "IRL",
-        "createdAt": "2026-04-18T00:30:22.921Z"
-      }
-    }
+    "allowedKeys": [],
+    "keysMeta": {}
   }
 }

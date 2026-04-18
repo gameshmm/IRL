@@ -12,6 +12,9 @@ yarn-error.log*
 dashboard/dist/
 dashboard/.vite/
 
+# ─── Configuração pessoal (senha, chaves) — NUNCA commitar ───────────────────
+server/config.json
+
 # ─── Media (HLS/stream files gerados em runtime) ──────────────────────────────
 server/media/
 
