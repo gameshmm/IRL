@@ -5,7 +5,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
-// ─── Load Configuration ────────────────────────────────────────────────────────
+// ─── Carregar Configuração ────────────────────────────────────────────────────
 const CONFIG_PATH   = path.join(__dirname, '..', 'config.json');
 const EXAMPLE_PATH  = path.join(__dirname, '..', 'config.example.json');
 
@@ -32,14 +32,14 @@ function saveConfig(cfg) {
 
 let config = loadConfig();
 
-// ─── Signal State Manager ──────────────────────────────────────────────────────
-// Shared signal state broadcast via SSE to the overlay
+// ─── Gerenciador de Estado do Sinal ───────────────────────────────────────────
+// Estado compartilhado do sinal, transmitido via SSE para o overlay
 const signalState = {
   status: 'offline',       // 'offline' | 'connecting' | 'live' | 'weak' | 'lost'
   bitrate: 0,
   streamPath: null,
   lostAt: null,
-  listeners: new Set()     // SSE response objects
+  listeners: new Set()     // objetos de resposta SSE
 };
 
 function broadcastSignal(update) {
@@ -54,7 +54,7 @@ function broadcastSignal(update) {
   for (const res of signalState.listeners) {
     try { res.write(`data: ${data}\n\n`); } catch (_) {}
   }
-  console.log(`[SIGNAL] status=${signalState.status} bitrate=${signalState.bitrate}`);
+  console.log(`[SINAL] status=${signalState.status} bitrate=${signalState.bitrate}`);
 }
 
 // ─── Node Media Server ─────────────────────────────────────────────────────────
@@ -76,38 +76,38 @@ const nmsConfig = {
 
 const nms = new NodeMediaServer(nmsConfig);
 
-// ─── Session tracker (populated via NMS events) ───────────────────────────────
+// ─── Rastreador de Sessões (preenchido via eventos do NMS) ───────────────────
 const activeSessions = new Map();
-const WEAK_THRESHOLD_KBPS = 400;
+const WEAK_THRESHOLD_KBPS = 1500; // abaixo de 1.5 Mbps = sinal fraco
 
-// ─── Auth Hook + Signal Hooks ─────────────────────────────────────────────────
+// ─── Autenticação + Hooks de Sinal ────────────────────────────────────────────
 nms.on('prePublish', (id, StreamPath, args) => {
   const cfg = loadConfig();
   const allowedKeys = cfg.stream.allowedKeys || [];
   const streamKey = StreamPath.split('/').pop();
 
   if (!allowedKeys.includes(streamKey)) {
-    console.log(`[AUTH] Rejected stream key: "${streamKey}"`);
+    console.log(`[AUTH] Chave rejeitada: "${streamKey}"`);
     const session = nms.getSession(id);
     if (session) session.reject();
   } else {
-    console.log(`[AUTH] Accepted stream key: "${streamKey}"`);
+    console.log(`[AUTH] Chave aceita: "${streamKey}"`);
     broadcastSignal({ status: 'connecting', streamPath: StreamPath });
   }
 });
 
 nms.on('postPublish', (id, StreamPath) => {
-  console.log(`[NMS] Stream started: ${StreamPath}`);
+  console.log(`[NMS] Stream iniciado: ${StreamPath}`);
   activeSessions.set(id, { id, StreamPath, startedAt: Date.now() });
   broadcastSignal({ status: 'live', streamPath: StreamPath, lostAt: null });
 });
 
 nms.on('donePublish', (id, StreamPath) => {
-  console.log(`[NMS] Stream ended: ${StreamPath}`);
+  console.log(`[NMS] Stream encerrado: ${StreamPath}`);
   activeSessions.delete(id);
   broadcastSignal({ status: 'lost', streamPath: StreamPath, lostAt: new Date().toISOString(), bitrate: 0 });
 
-  // Auto-recover to 'offline' after 60s if no reconnect
+  // Volta para 'offline' após 60s se não reconectar
   setTimeout(() => {
     if (signalState.status === 'lost') {
       broadcastSignal({ status: 'offline', streamPath: null });
@@ -115,35 +115,37 @@ nms.on('donePublish', (id, StreamPath) => {
   }, 60_000);
 });
 
-// ─── Weak-signal detection: poll bitrate every 3s ───────────────────────────
+// ─── Weak-signal detection: poll bitrate every 2s ───────────────────────────
 
 setInterval(() => {
   if (signalState.status !== 'live' && signalState.status !== 'weak') return;
   if (activeSessions.size === 0) return;
 
   activeSessions.forEach((info, id) => {
-    // getSession(id) is a valid NMS v2 method
     const session = nms.getSession(id);
     if (!session) { activeSessions.delete(id); return; }
 
-    // node-media-server exposes bitrate in kbps on RTMPSession after stream starts
+    // session.bitrate é atualizado pelo NMS a cada 1s via onSocketData
     const bitrateKbps = typeof session.bitrate === 'number' ? session.bitrate : 0;
+    if (bitrateKbps <= 0) return; // ainda não calculou (primeiros segundos)
 
-    if (bitrateKbps > 0 && bitrateKbps < WEAK_THRESHOLD_KBPS && signalState.status === 'live') {
-      broadcastSignal({ status: 'weak', bitrate: bitrateKbps });
-    } else if (bitrateKbps >= WEAK_THRESHOLD_KBPS && signalState.status === 'weak') {
-      broadcastSignal({ status: 'live', bitrate: bitrateKbps });
-    } else if (bitrateKbps > 0) {
-      signalState.bitrate = bitrateKbps; // silent update
+    const prevStatus = signalState.status;
+    const isWeak = bitrateKbps < WEAK_THRESHOLD_KBPS;
+    const newStatus = isWeak ? 'weak' : 'live';
+
+    // Sempre faz broadcast — atualiza bitrate em tempo real no dashboard
+    // e muda o status quando necessário
+    if (newStatus !== prevStatus || bitrateKbps !== signalState.bitrate) {
+      broadcastSignal({ status: newStatus, bitrate: bitrateKbps });
     }
   });
-}, 3000);
+}, 2000);
 
 nms.run();
-console.log(`[NMS] RTMP server running on port ${config.rtmp.port}`);
-console.log(`[NMS] HTTP server running on port ${config.http.port}`);
+console.log(`[NMS] Servidor RTMP rodando na porta ${config.rtmp.port}`);
+console.log(`[NMS] Servidor HTTP rodando na porta ${config.http.port}`);
 
-// ─── REST API (Express) ────────────────────────────────────────────────────────
+// ─── API REST (Express) ────────────────────────────────────────────────────────
 const { router: authRouter } = require('./routes/auth');
 const keysRouter = require('./routes/keys');
 const configRouter = require('./routes/config');
@@ -156,12 +158,12 @@ const API_PORT = process.env.API_PORT || 3001;
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
-// ─── Serve overlay HTML (public, no auth) ─────────────────────────────────────
+// ─── Servir overlay HTML (público, sem autenticação) ─────────────────────────
 const OVERLAY_DIR = path.join(__dirname, '..', 'overlay');
 app.use('/overlay', express.static(OVERLAY_DIR));
 
-// ─── SSE: Signal events for overlay ───────────────────────────────────────────
-// GET /signal/events  (no auth — the overlay in OBS has no token)
+// ─── SSE: Eventos de sinal para o overlay ─────────────────────────────────────
+// GET /signal/events  (sem auth — o overlay no OBS não tem token)
 app.get('/signal/events', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -169,7 +171,7 @@ app.get('/signal/events', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.flushHeaders();
 
-  // Send current state immediately on connect
+  // Envia o estado atual imediatamente ao conectar
   const current = JSON.stringify({
     status: signalState.status,
     bitrate: signalState.bitrate,
@@ -186,7 +188,7 @@ app.get('/signal/events', (req, res) => {
   });
 });
 
-// GET /signal/status  (protected — dashboard polls this)
+// GET /signal/status  (protegido — dashboard faz polling/SSE)
 app.get('/signal/status', (req, res) => {
   res.json({
     status: signalState.status,
@@ -196,10 +198,10 @@ app.get('/signal/status', (req, res) => {
   });
 });
 
-// Public routes
+// Rotas públicas
 app.use('/api/auth', authRouter);
 
-// Protected routes (JWT required)
+// Rotas protegidas (JWT obrigatório)
 const { verifyToken } = require('./middleware/auth');
 app.use('/api/keys', verifyToken, keysRouter);
 app.use('/api/config', verifyToken, configRouter);
@@ -207,9 +209,9 @@ app.use('/api/status', verifyToken, statusRouter);
 app.use('/api/obs', verifyToken, obsRouter);
 
 app.listen(API_PORT, () => {
-  console.log(`[API] Management API running on port ${API_PORT}`);
-  console.log(`[OVERLAY] Overlay available at http://localhost:${API_PORT}/overlay/`);
-  console.log(`[SSE] Signal events at http://localhost:${API_PORT}/signal/events`);
+  console.log(`[API] API de gerenciamento rodando na porta ${API_PORT}`);
+  console.log(`[OVERLAY] Disponível em http://localhost:${API_PORT}/overlay/`);
+  console.log(`[SSE] Eventos de sinal em http://localhost:${API_PORT}/signal/events`);
 });
 
 module.exports = { nms, app, loadConfig, saveConfig, signalState, broadcastSignal };

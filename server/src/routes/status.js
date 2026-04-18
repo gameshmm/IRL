@@ -6,7 +6,7 @@ const router = express.Router();
 
 /**
  * GET /api/status
- * Returns server status, CPU, RAM and active streams
+ * Retorna status do servidor, CPU, RAM e streams ativos
  */
 router.get('/', async (req, res) => {
   try {
@@ -21,7 +21,7 @@ router.get('/', async (req, res) => {
     const minutes = Math.floor((uptime % 3600) / 60);
     const seconds = Math.floor(uptime % 60);
 
-    // Try to get active sessions from NMS
+    // Tenta obter sessões ativas do NMS
     let activeSessions = [];
     try {
       const { nms } = require('../index');
@@ -38,7 +38,7 @@ router.get('/', async (req, res) => {
         });
       }
     } catch (e) {
-      // NMS not yet available
+      // NMS ainda não disponível
     }
 
     res.json({
@@ -47,7 +47,7 @@ router.get('/', async (req, res) => {
       cpu: {
         usage: cpuUsage.toFixed(1),
         cores: os.cpus().length,
-        model: os.cpus()[0]?.model || 'Unknown'
+        model: os.cpus()[0]?.model || 'Desconhecido'
       },
       memory: {
         usedPercentage: (100 - memInfo.freeMemPercentage).toFixed(1),

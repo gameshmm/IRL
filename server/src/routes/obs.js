@@ -4,7 +4,7 @@ const OBSWebSocket = require('obs-websocket-js').default;
 const router = express.Router();
 const obs = new OBSWebSocket();
 
-// State
+// Estado
 let obsState = {
   connected: false,
   streaming: false,
@@ -55,17 +55,17 @@ router.post('/connect', async (req, res) => {
     obs.on('ConnectionClosed', () => {
       obsState.connected = false;
       obsState.streaming = false;
-      console.log('[OBS] Disconnected from OBS WebSocket');
+      console.log('[OBS] Desconectado do OBS WebSocket');
     });
 
     obs.on('StreamStateChanged', (data) => {
       obsState.streaming = data.outputActive;
-      console.log(`[OBS] Stream state: ${data.outputActive ? 'started' : 'stopped'}`);
+      console.log(`[OBS] Estado do stream: ${data.outputActive ? 'iniciado' : 'encerrado'}`);
     });
 
     obs.on('CurrentProgramSceneChanged', (data) => {
       obsState.currentScene = data.sceneName;
-      console.log(`[OBS] Scene changed to: ${data.sceneName}`);
+      console.log(`[OBS] Cena alterada para: ${data.sceneName}`);
     });
 
     obs.on('RecordStateChanged', (data) => {

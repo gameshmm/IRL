@@ -9,7 +9,7 @@ function loadConfig() {
 }
 
 /**
- * Middleware: verifies JWT Bearer token
+ * Middleware: verifica token JWT Bearer
  */
 function verifyToken(req, res, next) {
   const authHeader = req.headers['authorization'];

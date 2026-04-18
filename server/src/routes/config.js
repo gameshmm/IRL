@@ -15,7 +15,7 @@ function saveConfig(cfg) {
 
 /**
  * GET /api/config
- * Returns safe (non-sensitive) configuration
+ * Retorna configurações seguras (sem dados sensíveis)
  */
 router.get('/', (req, res) => {
   const cfg = loadConfig();
@@ -33,7 +33,7 @@ router.get('/', (req, res) => {
 /**
  * PUT /api/config
  * Body: { rtmp?, http?, trans? }
- * Partially updates configuration
+ * Atualiza configurações parcialmente
  */
 router.put('/', (req, res) => {
   const cfg = loadConfig();
@@ -43,7 +43,7 @@ router.put('/', (req, res) => {
     cfg.rtmp = { ...cfg.rtmp, ...rtmp };
   }
   if (http) {
-    // Don't allow changing mediaroot from UI
+    // Não permite alterar mediaroot pela interface
     const { mediaroot, ...httpSafe } = http;
     cfg.http = { ...cfg.http, ...httpSafe };
   }

@@ -6,8 +6,8 @@ import {
   Tv2, AlertCircle, Radio, Wifi, WifiOff
 } from 'lucide-react';
 
-const POLL_MS = 4000;
 const RETRY_MS = 5000;
+
 
 export default function PlayerPage() {
   const videoRef = useRef(null);
@@ -75,7 +75,9 @@ export default function PlayerPage() {
 
     // HTTP-FLV via proxy Vite → NMS porta 8000
     // NMS serve FLV nativamente sem FFmpeg
-    const url = `/live/${key}.flv`;
+    // IMPORTANTE: URL deve ser absoluta — o mpegts.js executa o fetch
+    // dentro de um Web Worker (blob URL) que não resolve caminhos relativos.
+    const url = `${window.location.origin}/live/${key}.flv`;
 
     const player = mpegts.createPlayer({
       type: 'flv',
@@ -120,21 +122,22 @@ export default function PlayerPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedKey]);
 
-  // Polling do sinal
+  // SSE de sinal — reage em tempo real sem polling
   useEffect(() => {
-    const id = setInterval(async () => {
+    const es = new EventSource('/signal/events');
+    es.onmessage = (e) => {
       try {
-        const res = await axios.get('/signal/status');
-        setSignal(res.data);
-        const { status, streamPath } = res.data;
-        if ((status === 'live' || status === 'weak') && streamPath) {
-          const k = streamPath.split('/').pop();
+        const data = JSON.parse(e.data);
+        setSignal(data);
+        if ((data.status === 'live' || data.status === 'weak') && data.streamPath) {
+          const k = data.streamPath.split('/').pop();
           setSelectedKey(prev => (k !== prev ? k : prev));
         }
       } catch (_) {}
-    }, POLL_MS);
-    return () => clearInterval(id);
+    };
+    return () => es.close();
   }, []);
+
 
   // Cleanup
   useEffect(() => () => { destroyPlayer(); }, [destroyPlayer]);
@@ -184,6 +187,13 @@ export default function PlayerPage() {
             /live/{selectedKey || '...'}.flv
           </code>
           <span className="pl-badge-green">HTTP-FLV</span>
+          {signal.bitrate > 0 && (
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              {signal.bitrate >= 1000
+                ? `${(signal.bitrate / 1000).toFixed(1)} Mbps`
+                : `${signal.bitrate} kbps`}
+            </span>
+          )}
         </div>
 
         {selectedMeta && (

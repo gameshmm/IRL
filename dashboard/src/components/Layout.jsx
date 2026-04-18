@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, Key, Settings, Tv2, LogOut, Zap,
-  Menu, X, ChevronRight, Activity, MonitorPlay
+  Menu, X, ChevronRight, Activity, MonitorPlay,
+  WifiOff, Wifi, AlertTriangle
 } from 'lucide-react';
 
 const navItems = [
@@ -14,12 +15,23 @@ const navItems = [
   { to: '/settings', icon: Settings, label: 'Configurações' },
 ];
 
+// ─── Configuração do toast de sinal fraco ───────────────────────────────────
+const SIGNAL_TOAST_CONFIG = {
+  weak:    { icon: AlertTriangle, color: '#ff9f43', bg: 'rgba(255,159,67,0.12)',  border: 'rgba(255,159,67,0.35)', label: '⚠ Sinal Fraco'    },
+  lost:    { icon: WifiOff,       color: '#ff4757', bg: 'rgba(255,71,87,0.12)',   border: 'rgba(255,71,87,0.35)',  label: '✕ Sinal Perdido'  },
+  offline: { icon: WifiOff,       color: '#636e72', bg: 'rgba(99,110,114,0.12)', border: 'rgba(99,110,114,0.3)', label: '— Offline'         },
+};
+
 export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [serverStatus, setServerStatus] = useState('checking');
+  const [signal, setSignal] = useState({ status: 'offline', bitrate: 0 });
+  const [toastVisible, setToastVisible] = useState(false);
+  const hideTimerRef = useRef(null);
 
+  // Polling do servidor
   useEffect(() => {
     const checkStatus = async () => {
       try {
@@ -33,6 +45,27 @@ export default function Layout() {
     checkStatus();
     const interval = setInterval(checkStatus, 15000);
     return () => clearInterval(interval);
+  }, []);
+
+  // SSE global de sinal — alimenta o toast no canto superior direito
+  useEffect(() => {
+    const es = new EventSource('/signal/events');
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        setSignal(data);
+        const showToast = data.status === 'weak' || data.status === 'lost';
+        setToastVisible(showToast);
+        // Sinal perdido: esconde automaticamente após 8s
+        if (data.status === 'lost') {
+          if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+          hideTimerRef.current = setTimeout(() => setToastVisible(false), 8000);
+        } else if (data.status === 'live') {
+          setToastVisible(false);
+        }
+      } catch (_) {}
+    };
+    return () => { es.close(); if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
   }, []);
 
   const handleLogout = () => {
@@ -119,6 +152,32 @@ export default function Layout() {
       <main className="main-content">
         <Outlet />
       </main>
+
+      {/* ─── Toast: sinal fraco / perdido (canto superior direito) ─── */}
+      {(() => {
+        const cfg = SIGNAL_TOAST_CONFIG[signal.status];
+        if (!cfg) return null;
+        const Icon = cfg.icon;
+        return (
+          <div
+            className={`signal-toast ${toastVisible ? 'signal-toast--visible' : ''}`}
+            style={{ '--toast-color': cfg.color, '--toast-bg': cfg.bg, '--toast-border': cfg.border }}
+          >
+            <Icon size={15} style={{ flexShrink: 0 }} />
+            <div className="signal-toast-text">
+              <span className="signal-toast-label">{cfg.label}</span>
+              {signal.bitrate > 0 && signal.status === 'weak' && (
+                <span className="signal-toast-bitrate">
+                  {signal.bitrate >= 1000
+                    ? `${(signal.bitrate / 1000).toFixed(1)} Mbps`
+                    : `${signal.bitrate} kbps`}
+                </span>
+              )}
+            </div>
+            <button className="signal-toast-close" onClick={() => setToastVisible(false)}>✕</button>
+          </div>
+        );
+      })()}
 
       <style>{`
         .layout {
@@ -291,9 +350,64 @@ export default function Layout() {
           min-width: 0;
         }
 
+        /* ─── Signal Toast ─── */
+        .signal-toast {
+          position: fixed;
+          top: 20px;
+          right: 24px;
+          z-index: 9999;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 14px 10px 12px;
+          border-radius: 10px;
+          background: var(--toast-bg);
+          border: 1.5px solid var(--toast-border);
+          color: var(--toast-color);
+          font-size: 0.82rem;
+          font-weight: 600;
+          backdrop-filter: blur(16px);
+          box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+          /* Estado inicial: fora da tela (direita) */
+          opacity: 0;
+          transform: translateX(calc(100% + 32px));
+          transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
+          pointer-events: none;
+        }
+        .signal-toast--visible {
+          opacity: 1;
+          transform: translateX(0);
+          pointer-events: auto;
+        }
+        .signal-toast-text {
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+          line-height: 1.2;
+        }
+        .signal-toast-label { font-weight: 700; }
+        .signal-toast-bitrate {
+          font-size: 0.7rem;
+          opacity: 0.75;
+          font-weight: 400;
+        }
+        .signal-toast-close {
+          background: none;
+          border: none;
+          color: var(--toast-color);
+          cursor: pointer;
+          opacity: 0.6;
+          font-size: 0.75rem;
+          padding: 0 0 0 4px;
+          line-height: 1;
+          transition: opacity 0.15s;
+        }
+        .signal-toast-close:hover { opacity: 1; }
+
         @media (max-width: 768px) {
           .sidebar--open { width: 240px; }
           .main-content { padding: 16px; }
+          .signal-toast { top: 12px; right: 12px; font-size: 0.78rem; }
         }
       `}</style>
     </div>

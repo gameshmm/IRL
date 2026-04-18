@@ -16,7 +16,7 @@ function saveConfig(cfg) {
 
 /**
  * GET /api/keys
- * Returns list of stream keys with metadata
+ * Retorna lista de chaves de stream com metadados
  */
 router.get('/', (req, res) => {
   const cfg = loadConfig();
@@ -35,7 +35,7 @@ router.get('/', (req, res) => {
 /**
  * POST /api/keys
  * Body: { label? }
- * Creates a new stream key
+ * Cria uma nova chave de stream
  */
 router.post('/', (req, res) => {
   const cfg = loadConfig();
@@ -63,7 +63,7 @@ router.post('/', (req, res) => {
 
 /**
  * DELETE /api/keys/:key
- * Removes a stream key
+ * Remove uma chave de stream
  */
 router.delete('/:key', (req, res) => {
   const { key } = req.params;

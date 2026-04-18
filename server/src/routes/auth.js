@@ -14,7 +14,7 @@ function loadConfig() {
 /**
  * POST /api/auth/login
  * Body: { username, password }
- * Returns: { token }
+ * Retorna: { token }
  */
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
