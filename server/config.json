@@ -1,0 +1,43 @@
+{
+  "rtmp": {
+    "port": 1935,
+    "chunk_size": 60000,
+    "gop_cache": true,
+    "ping": 30,
+    "ping_timeout": 60
+  },
+  "http": {
+    "port": 8000,
+    "allow_origin": "*",
+    "mediaroot": "./media"
+  },
+  "trans": {
+    "ffmpeg": "/usr/bin/ffmpeg",
+    "tasks": [
+      {
+        "app": "live",
+        "hls": true,
+        "hlsFlags": "[hls_time=2:hls_list_size=3:hls_flags=delete_segments]",
+        "dash": false,
+        "dashFlags": "[seg_duration=2:window_size=3:extra_window_size=5]"
+      }
+    ]
+  },
+  "admin": {
+    "username": "admin",
+    "passwordHash": "$2a$10$1MjujZteXWU88k1RsdccReeptHLTbMSQXncrXJu5oZ3YQYXsybUBq",
+    "jwtSecret": "CHANGE_THIS_TO_A_RANDOM_SECRET_STRING_IN_PRODUCTION"
+  },
+  "stream": {
+    "app": "live",
+    "allowedKeys": [
+      "7eabfbf8d96a4ee3"
+    ],
+    "keysMeta": {
+      "7eabfbf8d96a4ee3": {
+        "label": "Stream Principal",
+        "createdAt": "2026-04-18T00:09:42.512Z"
+      }
+    }
+  }
+}

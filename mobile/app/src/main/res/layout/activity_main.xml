@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0A0B0F">
+
+    <!-- Camera Preview (full screen background) -->
+    <SurfaceView
+        android:id="@+id/surfaceView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Top overlay: status + controls -->
+    <LinearLayout
+        android:id="@+id/topOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:gravity="center_vertical"
+        android:background="#88000000"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <!-- LIVE badge -->
+        <TextView
+            android:id="@+id/liveBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="● AO VIVO"
+            android:textColor="#FF4757"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:background="@drawable/badge_live_bg"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:visibility="gone" />
+
+        <!-- Status text -->
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:text="Offline"
+            android:textColor="#AAAAAA"
+            android:textSize="13sp" />
+
+        <!-- Settings button -->
+        <ImageButton
+            android:id="@+id/btnSettings"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_preferences"
+            android:background="#33FFFFFF"
+            android:padding="8dp"
+            android:contentDescription="Configurações" />
+    </LinearLayout>
+
+    <!-- Bottom overlay: stream controls -->
+    <LinearLayout
+        android:id="@+id/bottomOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:background="#CC000000"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <!-- Server URL -->
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="ENDEREÇO DO SERVIDOR" android:textColor="#6C63FF"
+            android:textSize="10sp" android:textStyle="bold" android:letterSpacing="0.1"
+            android:layout_marginBottom="4dp" />
+        <EditText
+            android:id="@+id/etServerUrl"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:hint="192.168.1.100 ou meu.servidor.com"
+            android:textColorHint="#555555"
+            android:textColor="#FFFFFF"
+            android:background="@drawable/input_bg"
+            android:padding="12dp"
+            android:inputType="textUri"
+            android:singleLine="true"
+            android:textSize="14sp"
+            android:layout_marginBottom="12dp" />
+
+        <!-- Stream Key -->
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="CHAVE DE STREAM" android:textColor="#6C63FF"
+            android:textSize="10sp" android:textStyle="bold" android:letterSpacing="0.1"
+            android:layout_marginBottom="4dp" />
+        <EditText
+            android:id="@+id/etStreamKey"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:hint="sua-chave-de-transmissao"
+            android:textColorHint="#555555"
+            android:textColor="#FFFFFF"
+            android:background="@drawable/input_bg"
+            android:padding="12dp"
+            android:inputType="textVisiblePassword"
+            android:singleLine="true"
+            android:textSize="14sp"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Bitrate slider -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="BITRATE" android:textColor="#6C63FF"
+                android:textSize="10sp" android:textStyle="bold" android:letterSpacing="0.1" />
+            <TextView
+                android:id="@+id/tvBitrateValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="2000 kbps"
+                android:textColor="#AAAAAA"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/sliderBitrate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="500"
+            android:valueTo="6000"
+            android:value="2000"
+            android:stepSize="100"
+            android:layout_marginBottom="16dp"
+            app:thumbColor="#6C63FF"
+            app:trackColorActive="#6C63FF"
+            app:trackColorInactive="#333344" />
+
+        <!-- Action buttons row -->
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center">
+
+            <!-- Flip camera -->
+            <ImageButton
+                android:id="@+id/btnFlipCamera"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:src="@android:drawable/ic_menu_rotate"
+                android:background="@drawable/round_btn_bg"
+                android:contentDescription="Virar câmera"
+                android:layout_marginEnd="16dp" />
+
+            <!-- Go Live main button -->
+            <Button
+                android:id="@+id/btnGoLive"
+                android:layout_width="0dp"
+                android:layout_height="56dp"
+                android:layout_weight="1"
+                android:text="🔴  IR AO VIVO"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:backgroundTint="#FF4757"
+                android:layout_marginEnd="16dp" />
+
+            <!-- Torch -->
+            <ImageButton
+                android:id="@+id/btnTorch"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:src="@android:drawable/ic_menu_share"
+                android:background="@drawable/round_btn_bg"
+                android:alpha="0.5"
+                android:contentDescription="Lanterna" />
+        </LinearLayout>
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

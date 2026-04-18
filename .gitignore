@@ -1,0 +1,43 @@
+# ─── Node.js ──────────────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ─── Environment ──────────────────────────────────────────────────────────────
+.env
+!.env.example
+
+# ─── Build output ─────────────────────────────────────────────────────────────
+dashboard/dist/
+dashboard/.vite/
+
+# ─── Media (HLS/stream files gerados em runtime) ──────────────────────────────
+server/media/
+
+# ─── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Android ──────────────────────────────────────────────────────────────────
+mobile/.gradle/
+mobile/app/build/
+mobile/build/
+mobile/local.properties
+mobile/*.iml
+mobile/.idea/
+mobile/app/release/
+*.apk
+*.aab
+*.keystore
+!debug.keystore
+
+# ─── IDE ──────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+logs/
+*.log

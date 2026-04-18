@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IRL Signal Overlay</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      /* Transparent background for OBS Browser Source */
+      background: transparent;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      font-family: 'Arial Black', 'Arial', sans-serif;
+    }
+
+    /* ─── LOST overlay (full screen) ──────────────────────────────── */
+    #overlay-lost {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.88);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.6s ease;
+      z-index: 100;
+    }
+
+    #overlay-lost.visible { opacity: 1; }
+
+    .lost-icon {
+      width: 120px;
+      height: 120px;
+      position: relative;
+    }
+
+    .lost-icon svg {
+      width: 100%;
+      height: 100%;
+      animation: lost-pulse 1.5s ease-in-out infinite;
+      filter: drop-shadow(0 0 24px rgba(255, 71, 87, 0.7));
+    }
+
+    .lost-title {
+      font-size: 64px;
+      font-weight: 900;
+      color: #ffffff;
+      text-transform: uppercase;
+      letter-spacing: 6px;
+      text-shadow: 0 0 40px rgba(255, 71, 87, 0.8);
+      animation: lost-flicker 2s ease-in-out infinite;
+    }
+
+    .lost-subtitle {
+      font-size: 28px;
+      font-weight: 700;
+      color: #ff4757;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+    }
+
+    .lost-dots {
+      display: flex;
+      gap: 10px;
+    }
+
+    .lost-dots span {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ff4757;
+      animation: bounce-dot 1.4s ease-in-out infinite;
+    }
+
+    .lost-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .lost-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    .lost-timer {
+      font-size: 20px;
+      color: rgba(255, 255, 255, 0.5);
+      letter-spacing: 2px;
+    }
+
+    /* ─── WEAK SIGNAL badge (bottom right) ──────────────────────────── */
+    #overlay-weak {
+      position: fixed;
+      bottom: 40px;
+      right: 40px;
+      background: rgba(0, 0, 0, 0.75);
+      border: 2px solid #ffa502;
+      border-radius: 12px;
+      padding: 14px 22px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+      z-index: 90;
+      backdrop-filter: blur(8px);
+    }
+
+    #overlay-weak.visible { opacity: 1; }
+
+    .weak-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 28px;
+    }
+
+    .weak-bars span {
+      width: 6px;
+      border-radius: 3px;
+      background: #ffa502;
+    }
+
+    .weak-bars span:nth-child(1) { height: 8px; animation: weak-bar 1s ease-in-out infinite 0s; }
+    .weak-bars span:nth-child(2) { height: 14px; animation: weak-bar 1s ease-in-out infinite 0.15s; }
+    .weak-bars span:nth-child(3) { height: 20px; background: rgba(255, 165, 2, 0.3); }
+    .weak-bars span:nth-child(4) { height: 28px; background: rgba(255, 165, 2, 0.2); }
+
+    .weak-text {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .weak-title {
+      font-size: 18px;
+      font-weight: 900;
+      color: #ffa502;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .weak-bitrate {
+      font-size: 13px;
+      color: rgba(255, 165, 2, 0.75);
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+
+    /* ─── RECONNECTING badge ─────────────────────────────────────────── */
+    #overlay-reconnecting {
+      position: fixed;
+      top: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      border: 2px solid #6c63ff;
+      border-radius: 12px;
+      padding: 12px 28px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+      z-index: 95;
+    }
+
+    #overlay-reconnecting.visible { opacity: 1; }
+
+    .reconnect-spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(108, 99, 255, 0.3);
+      border-top-color: #6c63ff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .reconnect-text {
+      font-size: 18px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    /* ─── Animations ─────────────────────────────────────────────────── */
+    @keyframes lost-pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(0.9); opacity: 0.7; }
+    }
+
+    @keyframes lost-flicker {
+      0%, 90%, 100% { opacity: 1; }
+      92% { opacity: 0.4; }
+      94% { opacity: 1; }
+      96% { opacity: 0.2; }
+      98% { opacity: 1; }
+    }
+
+    @keyframes bounce-dot {
+      0%, 80%, 100% { transform: translateY(0); }
+      40% { transform: translateY(-10px); }
+    }
+
+    @keyframes weak-bar {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.25; }
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ─── Scanline effect (optional, cinematic) ──────────────────────── */
+    .scanlines {
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.07) 2px,
+        rgba(0, 0, 0, 0.07) 4px
+      );
+      pointer-events: none;
+      z-index: 50;
+      opacity: 0;
+      transition: opacity 0.5s;
+    }
+
+    .scanlines.visible { opacity: 1; }
+  </style>
+</head>
+<body>
+
+  <!-- Scanlines effect (shows when signal is lost/weak) -->
+  <div class="scanlines" id="scanlines"></div>
+
+  <!-- SIGNAL LOST (full screen) -->
+  <div id="overlay-lost">
+    <div class="lost-icon">
+      <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- WiFi icon with X -->
+        <path d="M50 75 C50 75 50 75 50 75" stroke="#ff4757" stroke-width="8" stroke-linecap="round"/>
+        <path d="M35 60 Q50 50 65 60" stroke="#ff4757" stroke-width="6" stroke-linecap="round" fill="none"/>
+        <path d="M22 47 Q50 30 78 47" stroke="rgba(255,71,87,0.5)" stroke-width="6" stroke-linecap="round" fill="none"/>
+        <path d="M12 35 Q50 12 88 35" stroke="rgba(255,71,87,0.25)" stroke-width="6" stroke-linecap="round" fill="none"/>
+        <!-- X mark -->
+        <line x1="30" y1="15" x2="70" y2="55" stroke="#ff4757" stroke-width="7" stroke-linecap="round"/>
+        <line x1="70" y1="15" x2="30" y2="55" stroke="#ff4757" stroke-width="7" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="lost-title">Sinal Perdido</div>
+    <div class="lost-subtitle">Tentando reconectar</div>
+    <div class="lost-dots">
+      <span></span><span></span><span></span>
+    </div>
+    <div class="lost-timer" id="lost-timer"></div>
+  </div>
+
+  <!-- WEAK SIGNAL (corner badge) -->
+  <div id="overlay-weak">
+    <div class="weak-bars">
+      <span></span><span></span><span></span><span></span>
+    </div>
+    <div class="weak-text">
+      <div class="weak-title">⚠ Sinal Fraco</div>
+      <div class="weak-bitrate" id="weak-bitrate">— kbps</div>
+    </div>
+  </div>
+
+  <!-- RECONNECTING (top center, during connecting state) -->
+  <div id="overlay-reconnecting">
+    <div class="reconnect-spinner"></div>
+    <div class="reconnect-text">Reconectando...</div>
+  </div>
+
+  <script>
+    // ─── Configuration ────────────────────────────────────────────────
+    // URL of the SSE endpoint — will be replaced by the correct host at runtime
+    const SSE_URL = window.location.origin.replace('3001', '3001') + '/signal/events';
+    // If loaded directly: use the server that served this file
+    const serverBase = window.location.origin;
+    const sseUrl = `${serverBase}/signal/events`;
+
+    // ─── Elements ─────────────────────────────────────────────────────
+    const elLost = document.getElementById('overlay-lost');
+    const elWeak = document.getElementById('overlay-weak');
+    const elReconnecting = document.getElementById('overlay-reconnecting');
+    const elScanlines = document.getElementById('scanlines');
+    const elLostTimer = document.getElementById('lost-timer');
+    const elWeakBitrate = document.getElementById('weak-bitrate');
+
+    let lostInterval = null;
+    let lostAt = null;
+
+    function showLost() {
+      elLost.classList.add('visible');
+      elScanlines.classList.add('visible');
+      elWeak.classList.remove('visible');
+      elReconnecting.classList.remove('visible');
+      startLostTimer();
+    }
+
+    function showWeak(bitrate) {
+      elLost.classList.remove('visible');
+      elReconnecting.classList.remove('visible');
+      elWeak.classList.add('visible');
+      elScanlines.classList.add('visible');
+      elWeakBitrate.textContent = bitrate > 0 ? `${bitrate} kbps` : '— kbps';
+    }
+
+    function showReconnecting() {
+      elReconnecting.classList.add('visible');
+      elLost.classList.remove('visible');
+      elWeak.classList.remove('visible');
+    }
+
+    function hideAll() {
+      elLost.classList.remove('visible');
+      elWeak.classList.remove('visible');
+      elReconnecting.classList.remove('visible');
+      elScanlines.classList.remove('visible');
+      stopLostTimer();
+    }
+
+    function startLostTimer() {
+      stopLostTimer();
+      if (!lostAt) { lostAt = new Date(); }
+      lostInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - lostAt.getTime()) / 1000);
+        const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+        const s = String(elapsed % 60).padStart(2, '0');
+        elLostTimer.textContent = `Sem sinal há ${m}:${s}`;
+      }, 1000);
+    }
+
+    function stopLostTimer() {
+      if (lostInterval) { clearInterval(lostInterval); lostInterval = null; }
+      lostAt = null;
+      elLostTimer.textContent = '';
+    }
+
+    // ─── SSE Connection ───────────────────────────────────────────────
+    let evtSource = null;
+    let retryTimeout = null;
+
+    function connect() {
+      if (evtSource) { evtSource.close(); }
+
+      evtSource = new EventSource(sseUrl);
+
+      evtSource.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          handleSignal(data);
+        } catch (_) {}
+      };
+
+      evtSource.onerror = () => {
+        evtSource.close();
+        evtSource = null;
+        // Retry in 5s
+        retryTimeout = setTimeout(connect, 5000);
+      };
+    }
+
+    function handleSignal(data) {
+      console.log('[OVERLAY] signal:', data.status, 'bitrate:', data.bitrate);
+
+      switch (data.status) {
+        case 'lost':
+          lostAt = data.lostAt ? new Date(data.lostAt) : new Date();
+          showLost();
+          break;
+        case 'weak':
+          showWeak(data.bitrate);
+          break;
+        case 'connecting':
+          showReconnecting();
+          break;
+        case 'live':
+        case 'offline':
+          hideAll();
+          break;
+        default:
+          hideAll();
+      }
+    }
+
+    // Start connecting
+    connect();
+  </script>
+</body>
+</html>
