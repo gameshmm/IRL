@@ -53,4 +53,27 @@ function upsertSetting(key, value) {
   db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, String(value));
 }
 
+// ─── Seed de credenciais padrão ───────────────────────────────────────────────
+// Inicializa username, hash de senha e JWT secret se ainda não existirem.
+// Usa INSERT OR IGNORE para não sobrescrever valores já definidos pelo usuário.
+(function seedDefaults() {
+  const bcrypt = require('bcryptjs');
+
+  const insert = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
+
+  // Username padrão
+  insert.run('admin_username', 'admin');
+
+  // Hash de admin123 — só insere se não houver hash algum
+  const existing = db.prepare('SELECT value FROM settings WHERE key = ?').get('admin_password_hash');
+  if (!existing) {
+    const hash = bcrypt.hashSync('admin123', 10);
+    insert.run('admin_password_hash', hash);
+    console.log('[DB] Senha padrão "admin123" gerada para o usuário admin. Altere nas Configurações!');
+  }
+
+  // JWT secret padrão (deve ser sobrescrito via .env)
+  insert.run('admin_jwt_secret', process.env.JWT_SECRET || 'changeme-please-set-JWT_SECRET-in-env');
+})();
+
 module.exports = { db, getSetting, upsertSetting };
