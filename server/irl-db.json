@@ -1,0 +1,18 @@
+{
+  "settings": [
+    {
+      "key": "admin_username",
+      "value": "admin"
+    },
+    {
+      "key": "admin_password_hash",
+      "value": "$2a$10$W3DO91seYS6ryKBHS9olJeFDzhbkdAx4Yp5otbrYE3NlRVeh.Z3ke"
+    },
+    {
+      "key": "admin_jwt_secret",
+      "value": "changeme-please-set-JWT_SECRET-in-env"
+    }
+  ],
+  "stream_keys": [],
+  "sessions": []
+}

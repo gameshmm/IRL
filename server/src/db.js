@@ -1,79 +1,70 @@
 /**
- * db.js — Módulo central do banco de dados SQLite
+ * db.js — Módulo central de dados (lowdb v1, JSON puro, sem dependências nativas)
  *
- * Usa better-sqlite3 (síncrono, sem callbacks).
- * Credenciais de admin, chaves de stream e histórico de sessões
- * vivem exclusivamente no arquivo irl.db.
+ * Substitui better-sqlite3 por lowdb para eliminar a necessidade de Python
+ * e Visual C++ Build Tools no Windows.
+ *
+ * API pública mantida compatível:
+ *   getSetting(key, default)
+ *   upsertSetting(key, value)
+ *   findStreamKey(key)        → usado pelo index.js para autenticar streams
+ *   db                        → instância lowdb exposta para as rotas
  */
 
-const Database = require('better-sqlite3');
-const path = require('path');
+const low      = require('lowdb');
+const FileSync = require('lowdb/adapters/FileSync');
+const bcrypt   = require('bcryptjs');
+const path     = require('path');
 
-const DB_PATH = path.join(__dirname, '..', 'irl.db');
+const DB_PATH = path.join(__dirname, '..', 'irl-db.json');
 
-// ─── Abre o banco (cria se não existir) ───────────────────────────────────────
-const db = new Database(DB_PATH);
+// ─── Abre / cria o banco JSON ─────────────────────────────────────────────────
+const adapter = new FileSync(DB_PATH);
+const db      = low(adapter);
 
-// WAL mode: muito mais rápido para leituras concorrentes
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
-
-// ─── Schema ───────────────────────────────────────────────────────────────────
-db.exec(`
-  -- Configurações gerais (chave/valor): admin, jwt_secret, etc.
-  CREATE TABLE IF NOT EXISTS settings (
-    key   TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  );
-
-  -- Chaves de stream autorizadas
-  CREATE TABLE IF NOT EXISTS stream_keys (
-    key        TEXT PRIMARY KEY,
-    label      TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-  );
-
-  -- Histórico de sessões de stream
-  CREATE TABLE IF NOT EXISTS sessions (
-    id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    stream_path      TEXT NOT NULL,
-    started_at       TEXT,
-    ended_at         TEXT NOT NULL,
-    duration_seconds INTEGER
-  );
-`);
+// Estrutura padrão (criada na primeira execução)
+db.defaults({
+  settings:    [],
+  stream_keys: [],
+  sessions:    []
+}).write();
 
 // ─── Helpers de configuração ──────────────────────────────────────────────────
 function getSetting(key, defaultValue = null) {
-  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+  const row = db.get('settings').find({ key }).value();
   return row ? row.value : defaultValue;
 }
 
 function upsertSetting(key, value) {
-  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, String(value));
+  const existing = db.get('settings').find({ key }).value();
+  if (existing) {
+    db.get('settings').find({ key }).assign({ value: String(value) }).write();
+  } else {
+    db.get('settings').push({ key, value: String(value) }).write();
+  }
+}
+
+// ─── Helper de chave de stream (usado pelo index.js na autenticação RTMP) ─────
+function findStreamKey(key) {
+  return db.get('stream_keys').find({ key }).value() || null;
 }
 
 // ─── Seed de credenciais padrão ───────────────────────────────────────────────
-// Inicializa username, hash de senha e JWT secret se ainda não existirem.
-// Usa INSERT OR IGNORE para não sobrescrever valores já definidos pelo usuário.
+// INSERT OR IGNORE equivalente: só cria se a chave não existir.
 (function seedDefaults() {
-  const bcrypt = require('bcryptjs');
-
-  const insert = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
-
-  // Username padrão
-  insert.run('admin_username', 'admin');
-
-  // Hash de admin123 — só insere se não houver hash algum
-  const existing = db.prepare('SELECT value FROM settings WHERE key = ?').get('admin_password_hash');
-  if (!existing) {
-    const hash = bcrypt.hashSync('admin123', 10);
-    insert.run('admin_password_hash', hash);
-    console.log('[DB] Senha padrão "admin123" gerada para o usuário admin. Altere nas Configurações!');
+  if (!getSetting('admin_username')) {
+    upsertSetting('admin_username', 'admin');
   }
 
-  // JWT secret padrão (deve ser sobrescrito via .env)
-  insert.run('admin_jwt_secret', process.env.JWT_SECRET || 'changeme-please-set-JWT_SECRET-in-env');
+  if (!getSetting('admin_password_hash')) {
+    const hash = bcrypt.hashSync('admin123', 10);
+    upsertSetting('admin_password_hash', hash);
+    console.log('[DB] Senha padrão "admin123" criada. Altere nas Configurações!');
+  }
+
+  if (!getSetting('admin_jwt_secret')) {
+    upsertSetting('admin_jwt_secret', process.env.JWT_SECRET || 'changeme-please-set-JWT_SECRET-in-env');
+  }
 })();
 
-module.exports = { db, getSetting, upsertSetting };
+module.exports = { db, getSetting, upsertSetting, findStreamKey };

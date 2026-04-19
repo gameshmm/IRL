@@ -98,6 +98,16 @@ if not exist ".env" (
     echo  [OK] Arquivo .env ja existe, mantendo configuracoes.
 )
 
+:: ── Migra dados do banco antigo (SQLite) se existir ──────────────────────────
+if exist "%~dp0server\irl.db" (
+    if exist "%~dp0server\migrate.js" (
+        echo.
+        echo  Detectado banco antigo (irl.db). Migrando dados...
+        node "%~dp0server\migrate.js"
+        echo  [OK] Migracao concluida!
+    )
+)
+
 echo.
 echo  =========================================
 echo    Instalacao concluida com sucesso!

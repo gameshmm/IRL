@@ -1,8 +1,8 @@
 require('dotenv').config();
 // Registra interceptador de logs ANTES de qualquer require que produza output
 const { appendLog } = require('./routes/logs');
-// Inicializa o banco de dados (migração automática incluída)
-const { db, getSetting } = require('./db');
+// Inicializa o banco de dados
+const { db, getSetting, findStreamKey } = require('./db');
 
 const NodeMediaServer = require('node-media-server');
 const express = require('express');
@@ -106,12 +106,9 @@ function broadcastStatus() {
 
 
 // ─── Autenticação + Hooks de Sinal ────────────────────────────────────────────
-// Statement preparado para busca rápida de chave no SQLite
-const stmtGetKey = db.prepare('SELECT key FROM stream_keys WHERE key = ?');
-
 nms.on('prePublish', (id, StreamPath, args) => {
   const streamKey = StreamPath.split('/').pop();
-  const found = stmtGetKey.get(streamKey);
+  const found = findStreamKey(streamKey);
 
   if (!found) {
     console.log(`[AUTH] Chave rejeitada: "${streamKey}"`);
