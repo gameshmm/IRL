@@ -19,6 +19,7 @@ server/config.json
 server/irl.db
 server/irl.db-shm
 server/irl.db-wal
+server/irl-db.json
 
 # ─── Dados de volume Docker ───────────────────────────────────────────────────
 data/*.db
