@@ -1,70 +1,136 @@
 /**
- * db.js — Módulo central de dados (lowdb v1, JSON puro, sem dependências nativas)
+ * db.js — Banco de dados SQLite via sql.js (WebAssembly)
  *
- * Substitui better-sqlite3 por lowdb para eliminar a necessidade de Python
- * e Visual C++ Build Tools no Windows.
+ * sql.js é o SQLite compilado para WASM — banco .db real em disco,
+ * sem Python, sem Visual C++, sem compilação nativa.
  *
- * API pública mantida compatível:
+ * API pública:
+ *   initDb()                     → async, chame uma vez na inicialização
  *   getSetting(key, default)
  *   upsertSetting(key, value)
- *   findStreamKey(key)        → usado pelo index.js para autenticar streams
- *   db                        → instância lowdb exposta para as rotas
+ *   findStreamKey(key)
+ *   dbRun(sql, params)           → INSERT / UPDATE / DELETE
+ *   dbGet(sql, params)           → retorna uma linha como objeto
+ *   dbAll(sql, params)           → retorna array de objetos
  */
 
-const low      = require('lowdb');
-const FileSync = require('lowdb/adapters/FileSync');
-const bcrypt   = require('bcryptjs');
-const path     = require('path');
+const path    = require('path');
+const fs      = require('fs');
+const bcrypt  = require('bcryptjs');
 
-const DB_PATH = path.join(__dirname, '..', 'irl-db.json');
+const DB_PATH = path.join(__dirname, '..', 'irl.db');
 
-// ─── Abre / cria o banco JSON ─────────────────────────────────────────────────
-const adapter = new FileSync(DB_PATH);
-const db      = low(adapter);
+let sqlDb = null; // instância sql.js Database
 
-// Estrutura padrão (criada na primeira execução)
-db.defaults({
-  settings:    [],
-  stream_keys: [],
-  sessions:    []
-}).write();
+// ─── Persiste o banco em disco após cada escrita ──────────────────────────────
+function saveDb() {
+  if (!sqlDb) return;
+  const data = sqlDb.export();
+  fs.writeFileSync(DB_PATH, Buffer.from(data));
+}
+
+// ─── Helpers de query (API similar ao better-sqlite3) ─────────────────────────
+function dbRun(sql, params = []) {
+  sqlDb.run(sql, params);
+  saveDb();
+}
+
+function dbGet(sql, params = []) {
+  const stmt = sqlDb.prepare(sql);
+  stmt.bind(params);
+  const row = stmt.step() ? stmt.getAsObject() : undefined;
+  stmt.free();
+  return row;
+}
+
+function dbAll(sql, params = []) {
+  const stmt = sqlDb.prepare(sql);
+  stmt.bind(params);
+  const rows = [];
+  while (stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows;
+}
 
 // ─── Helpers de configuração ──────────────────────────────────────────────────
 function getSetting(key, defaultValue = null) {
-  const row = db.get('settings').find({ key }).value();
+  const row = dbGet('SELECT value FROM settings WHERE key = ?', [key]);
   return row ? row.value : defaultValue;
 }
 
 function upsertSetting(key, value) {
-  const existing = db.get('settings').find({ key }).value();
-  if (existing) {
-    db.get('settings').find({ key }).assign({ value: String(value) }).write();
-  } else {
-    db.get('settings').push({ key, value: String(value) }).write();
-  }
+  dbRun('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, String(value)]);
 }
 
-// ─── Helper de chave de stream (usado pelo index.js na autenticação RTMP) ─────
+// ─── Autenticação de chave de stream (chamado pelo NMS) ───────────────────────
 function findStreamKey(key) {
-  return db.get('stream_keys').find({ key }).value() || null;
+  return dbGet('SELECT key FROM stream_keys WHERE key = ?', [key]) || null;
+}
+
+// ─── Schema ───────────────────────────────────────────────────────────────────
+function createSchema() {
+  sqlDb.exec(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS stream_keys (
+      key        TEXT PRIMARY KEY,
+      label      TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      stream_path      TEXT NOT NULL,
+      started_at       TEXT,
+      ended_at         TEXT NOT NULL,
+      duration_seconds INTEGER
+    );
+  `);
+  saveDb();
 }
 
 // ─── Seed de credenciais padrão ───────────────────────────────────────────────
-// INSERT OR IGNORE equivalente: só cria se a chave não existir.
-(function seedDefaults() {
+function seedDefaults() {
   if (!getSetting('admin_username')) {
     upsertSetting('admin_username', 'admin');
   }
-
   if (!getSetting('admin_password_hash')) {
     const hash = bcrypt.hashSync('admin123', 10);
     upsertSetting('admin_password_hash', hash);
     console.log('[DB] Senha padrão "admin123" criada. Altere nas Configurações!');
   }
-
   if (!getSetting('admin_jwt_secret')) {
     upsertSetting('admin_jwt_secret', process.env.JWT_SECRET || 'changeme-please-set-JWT_SECRET-in-env');
   }
-})();
+}
 
-module.exports = { db, getSetting, upsertSetting, findStreamKey };
+// ─── Inicialização (async — chame uma vez antes de tudo) ──────────────────────
+async function initDb() {
+  const initSqlJs = require('sql.js');
+
+  // Localiza o arquivo WASM dentro do pacote sql.js
+  const wasmPath = path.join(require.resolve('sql.js'), '..', 'sql-wasm.wasm');
+  const SQL = await initSqlJs({
+    locateFile: () => wasmPath
+  });
+
+  if (fs.existsSync(DB_PATH)) {
+    // Carrega banco existente
+    const buf = fs.readFileSync(DB_PATH);
+    sqlDb = new SQL.Database(buf);
+    console.log('[DB] Banco de dados carregado:', DB_PATH);
+  } else {
+    // Cria novo banco
+    sqlDb = new SQL.Database();
+    console.log('[DB] Novo banco de dados criado:', DB_PATH);
+  }
+
+  sqlDb.run('PRAGMA foreign_keys = ON');
+  createSchema();
+  seedDefaults();
+}
+
+module.exports = { initDb, getSetting, upsertSetting, findStreamKey, dbRun, dbGet, dbAll };

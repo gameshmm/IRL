@@ -1,6 +1,6 @@
 const express  = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { db }   = require('../db');
+const { dbRun, dbGet, dbAll } = require('../db');
 
 const router = express.Router();
 
@@ -9,10 +9,7 @@ const router = express.Router();
  * Retorna lista de chaves de stream com metadados
  */
 router.get('/', (req, res) => {
-  const keys = db.get('stream_keys')
-    .sortBy('created_at')
-    .map(k => ({ key: k.key, label: k.label, createdAt: k.created_at }))
-    .value();
+  const keys = dbAll('SELECT key, label, created_at AS createdAt FROM stream_keys ORDER BY created_at ASC');
   res.json({ keys });
 });
 
@@ -23,13 +20,17 @@ router.get('/', (req, res) => {
  */
 router.post('/', (req, res) => {
   const { label } = req.body;
-  const count = db.get('stream_keys').size().value();
+  const countRow  = dbGet('SELECT COUNT(*) AS n FROM stream_keys');
+  const count     = countRow ? Number(countRow.n) : 0;
 
   const newKey    = uuidv4().replace(/-/g, '').substring(0, 16);
   const newLabel  = (label || `Stream ${count + 1}`).trim();
   const createdAt = new Date().toISOString();
 
-  db.get('stream_keys').push({ key: newKey, label: newLabel, created_at: createdAt }).write();
+  dbRun(
+    'INSERT INTO stream_keys (key, label, created_at) VALUES (?, ?, ?)',
+    [newKey, newLabel, createdAt]
+  );
 
   res.status(201).json({ key: newKey, label: newLabel, createdAt });
 });
@@ -47,12 +48,12 @@ router.put('/:key', (req, res) => {
     return res.status(400).json({ error: 'label é obrigatório' });
   }
 
-  const existing = db.get('stream_keys').find({ key }).value();
+  const existing = dbGet('SELECT key FROM stream_keys WHERE key = ?', [key]);
   if (!existing) {
     return res.status(404).json({ error: 'Chave não encontrada' });
   }
 
-  db.get('stream_keys').find({ key }).assign({ label: label.trim() }).write();
+  dbRun('UPDATE stream_keys SET label = ? WHERE key = ?', [label.trim(), key]);
   res.json({ key, label: label.trim() });
 });
 
@@ -63,12 +64,12 @@ router.put('/:key', (req, res) => {
 router.delete('/:key', (req, res) => {
   const { key } = req.params;
 
-  const existing = db.get('stream_keys').find({ key }).value();
+  const existing = dbGet('SELECT key FROM stream_keys WHERE key = ?', [key]);
   if (!existing) {
     return res.status(404).json({ error: 'Chave não encontrada' });
   }
 
-  db.get('stream_keys').remove({ key }).write();
+  dbRun('DELETE FROM stream_keys WHERE key = ?', [key]);
   res.json({ message: 'Chave removida com sucesso' });
 });
 

@@ -48,6 +48,12 @@ if not exist "package.json" (
     exit /b 1
 )
 
+:: Remove node_modules antigo para evitar modulos nativos corrompidos (ex: better-sqlite3)
+if exist "node_modules" (
+    echo  Limpando instalacao anterior...
+    rmdir /s /q "node_modules" 2>nul
+)
+
 call npm install
 if errorlevel 1 (
     echo.
