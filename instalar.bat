@@ -1,60 +1,101 @@
 @echo off
+setlocal enabledelayedexpansion
 title IRL Stream - Instalacao
 color 0B
+
 echo.
 echo  =========================================
 echo    IRL STREAM - Instalacao Inicial
 echo  =========================================
 echo.
-echo  Este script vai instalar tudo que e necessario.
-echo  Aguarde, pode demorar alguns minutos...
-echo.
 
-:: Verifica Node.js
-node --version >nul 2>&1
+:: ── Verifica Node.js ───────────────────────────────────────────────────────────
+where node >nul 2>&1
 if errorlevel 1 (
-    echo  [ERRO] Node.js nao encontrado!
+    echo  [ERRO] Node.js nao encontrado no PATH!
     echo.
-    echo  Por favor, instale o Node.js antes de continuar:
-    echo  https://nodejs.org/  (baixe a versao LTS)
+    echo  Instale o Node.js LTS em: https://nodejs.org/
+    echo  Apos instalar, FECHE e reabra este script.
     echo.
     pause
     exit /b 1
 )
 
-echo  [OK] Node.js encontrado!
+for /f "tokens=*" %%v in ('node --version 2^>^&1') do set NODE_VER=%%v
+echo  [OK] Node.js %NODE_VER% encontrado!
+
+:: ── Verifica npm ───────────────────────────────────────────────────────────────
+where npm >nul 2>&1
+if errorlevel 1 (
+    echo  [ERRO] npm nao encontrado! Reinstale o Node.js.
+    pause
+    exit /b 1
+)
+
+for /f "tokens=*" %%v in ('npm --version 2^>^&1') do set NPM_VER=%%v
+echo  [OK] npm %NPM_VER% encontrado!
 echo.
 
-:: Instala dependencias do servidor
-echo  Instalando dependencias do servidor...
+:: ── Instala dependencias do servidor ───────────────────────────────────────────
+echo  [1/2] Instalando dependencias do servidor...
+echo        (pasta: %~dp0server)
+echo.
+
 cd /d "%~dp0server"
-call npm install --silent
+if not exist "package.json" (
+    echo  [ERRO] package.json do servidor nao encontrado em %~dp0server
+    pause
+    exit /b 1
+)
+
+call npm install
 if errorlevel 1 (
+    echo.
     echo  [ERRO] Falha ao instalar dependencias do servidor.
+    echo  Veja os erros acima e tente novamente.
     pause
     exit /b 1
 )
-echo  [OK] Servidor pronto!
+echo.
+echo  [OK] Dependencias do servidor instaladas!
 echo.
 
-:: Instala dependencias do dashboard
-echo  Instalando dependencias do painel web...
+:: ── Instala dependencias do dashboard ─────────────────────────────────────────
+echo  [2/2] Instalando dependencias do painel web...
+echo        (pasta: %~dp0dashboard)
+echo.
+
 cd /d "%~dp0dashboard"
-call npm install --silent
-if errorlevel 1 (
-    echo  [ERRO] Falha ao instalar dependencias do painel.
+if not exist "package.json" (
+    echo  [ERRO] package.json do dashboard nao encontrado em %~dp0dashboard
     pause
     exit /b 1
 )
-echo  [OK] Painel web pronto!
+
+call npm install
+if errorlevel 1 (
+    echo.
+    echo  [ERRO] Falha ao instalar dependencias do painel.
+    echo  Veja os erros acima e tente novamente.
+    pause
+    exit /b 1
+)
+echo.
+echo  [OK] Dependencias do painel instaladas!
 echo.
 
-:: Cria o .env se nao existir
+:: ── Cria .env se nao existir ───────────────────────────────────────────────────
 cd /d "%~dp0server"
 if not exist ".env" (
-    echo  Criando arquivo de variaveis de ambiente...
-    copy ".env.example" ".env" >nul
-    echo  [OK] Arquivo .env criado!
+    if exist ".env.example" (
+        copy ".env.example" ".env" >nul
+        echo  [OK] Arquivo .env criado a partir do .env.example
+    ) else (
+        echo  [AVISO] .env.example nao encontrado, .env nao foi criado.
+        echo          Crie manualmente se necessario.
+    )
+) else (
+    echo  [OK] Arquivo .env ja existe, mantendo configuracoes.
 )
 
 echo.
@@ -62,11 +103,9 @@ echo  =========================================
 echo    Instalacao concluida com sucesso!
 echo  =========================================
 echo.
-echo  Agora execute o arquivo:
-echo    iniciar.bat
+echo  Agora execute:  iniciar.bat
 echo.
-echo  Depois acesse no navegador:
-echo    http://localhost:5173
+echo  Acesse no navegador:  http://localhost:5173
 echo.
 echo  Login padrao:
 echo    Usuario: admin

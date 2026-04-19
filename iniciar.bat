@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 title IRL Stream - Iniciando...
 color 0A
 
@@ -8,43 +9,57 @@ echo    IRL STREAM - Iniciando Sistema
 echo  =========================================
 echo.
 
-:: Inicia o servidor em segundo plano
-echo  Iniciando servidor de midia...
-start "IRL - Servidor" cmd /k "title IRL - Servidor de Midia && cd /d "%~dp0server" && npm start"
+:: Verifica se dependencias estao instaladas
+if not exist "%~dp0server\node_modules" (
+    echo  [AVISO] Dependencias do servidor nao encontradas!
+    echo          Execute instalar.bat primeiro.
+    pause
+    exit /b 1
+)
+if not exist "%~dp0dashboard\node_modules" (
+    echo  [AVISO] Dependencias do painel nao encontradas!
+    echo          Execute instalar.bat primeiro.
+    pause
+    exit /b 1
+)
 
-:: Aguarda o servidor subir
+:: Define caminhos sem espaco no final (necessario para cmd /k)
+set SERVER_DIR=%~dp0server
+set DASH_DIR=%~dp0dashboard
+
+:: Inicia o servidor em janela separada
+echo  Iniciando servidor de midia (RTMP + API)...
+start "IRL - Servidor" cmd /k "title IRL - Servidor de Midia && cd /d "%SERVER_DIR%" && npm start"
+
+:: Aguarda o servidor inicializar
 timeout /t 3 /nobreak >nul
 
-:: Inicia o dashboard em segundo plano
-echo  Iniciando painel web...
-start "IRL - Painel" cmd /k "title IRL - Painel Web && cd /d "%~dp0dashboard" && npm run dev"
+:: Inicia o dashboard em janela separada
+echo  Iniciando painel web (Dashboard)...
+start "IRL - Painel" cmd /k "title IRL - Painel Web && cd /d "%DASH_DIR%" && npm run dev"
 
-:: Aguarda o dashboard subir
-timeout /t 4 /nobreak >nul
+:: Aguarda o dashboard inicializar
+timeout /t 5 /nobreak >nul
 
 echo.
 echo  =========================================
-echo    Sistema iniciado com sucesso!
+echo    Sistema iniciado!
 echo  =========================================
 echo.
-echo  Abrindo painel no navegador...
-echo.
-echo  Se nao abrir automaticamente, acesse:
-echo    http://localhost:5173
+echo  Painel:    http://localhost:5173
+echo  API:       http://localhost:3001
+echo  RTMP:      rtmp://localhost:1935/live
+echo  FLV:       http://localhost:8000/live/<chave>.flv
 echo.
 echo  Login:
 echo    Usuario: admin
 echo    Senha:   admin123
 echo.
-echo  Para o celular (PrismLive):
-echo    RTMP URL:    rtmp://SEU-IP:1935/live
-echo    Chave:       Gere no painel > Chaves de Stream
-echo.
+echo  Abrindo navegador...
 
 :: Abre o navegador
-timeout /t 2 /nobreak >nul
 start http://localhost:5173
 
-echo  Pressione qualquer tecla para fechar esta janela.
-echo  (O sistema continuara rodando nas outras janelas)
+echo.
+echo  Feche as outras janelas para parar o sistema.
 pause >nul
