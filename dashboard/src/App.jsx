@@ -11,6 +11,7 @@ import SettingsPage from './pages/SettingsPage';
 import OBSPage from './pages/OBSPage';
 import LogsPage from './pages/LogsPage';
 import HistoryPage from './pages/HistoryPage';
+import YouTubePage from './pages/YouTubePage';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -38,6 +39,7 @@ function AppRoutes() {
         <Route path="obs" element={<OBSPage />} />
         <Route path="logs" element={<LogsPage />} />
         <Route path="history" element={<HistoryPage />} />
+        <Route path="youtube" element={<YouTubePage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

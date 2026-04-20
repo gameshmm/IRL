@@ -182,6 +182,7 @@ setInterval(() => {
   const obsRouter                 = require('./routes/obs');
   const { router: historyRouter } = require('./routes/history');
   const { router: logsRouter }    = require('./routes/logs');
+  const youtubeRouter             = require('./routes/youtube');
   const { verifyToken }           = require('./middleware/auth');
 
   const app      = express();
@@ -257,6 +258,7 @@ setInterval(() => {
   app.use('/api/obs',     verifyToken, obsRouter);
   app.use('/api/history', verifyToken, historyRouter);
   app.use('/api/logs',    verifyToken, logsRouter);
+  app.use('/api/youtube', verifyToken, youtubeRouter);
 
   // Em produção: serve o dashboard buildado
   if (process.env.NODE_ENV === 'production') {

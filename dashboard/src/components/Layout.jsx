@@ -5,7 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import {
   LayoutDashboard, Key, Settings, Tv2, LogOut, Zap,
   Menu, X, ChevronRight, Activity, MonitorPlay,
-  WifiOff, Wifi, AlertTriangle, Terminal, Sun, Moon, BookOpen
+  WifiOff, Wifi, AlertTriangle, Terminal, Sun, Moon, BookOpen, Youtube
 } from 'lucide-react';
 
 const navItems = [
@@ -13,6 +13,7 @@ const navItems = [
   { to: '/player',    icon: Tv2,             label: 'Monitor'   },
   { to: '/keys',      icon: Key,             label: 'Chaves'    },
   { to: '/obs',       icon: MonitorPlay,     label: 'OBS'       },
+  { to: '/youtube',   icon: Youtube,         label: 'Chat YT'   },
   { to: '/history',   icon: BookOpen,        label: 'Histórico' },
   { to: '/logs',      icon: Terminal,        label: 'Logs'      },
   { to: '/settings',  icon: Settings,        label: 'Config'    },
@@ -24,6 +25,7 @@ const navItemsFull = [
   { to: '/player',    icon: Tv2,             label: 'Monitor ao Vivo'  },
   { to: '/keys',      icon: Key,             label: 'Chaves de Stream' },
   { to: '/obs',       icon: MonitorPlay,     label: 'Controle OBS'     },
+  { to: '/youtube',   icon: Youtube,         label: 'Chat YouTube'     },
   { to: '/history',   icon: BookOpen,        label: 'Histórico'        },
   { to: '/logs',      icon: Terminal,        label: 'Logs'             },
   { to: '/settings',  icon: Settings,        label: 'Configurações'    },
