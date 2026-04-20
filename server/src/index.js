@@ -142,7 +142,7 @@ nms.on('donePublish', (id, StreamPath) => {
   broadcastStatus();
 });
 
-// ─── Detecção de sinal fraco ──────────────────────────────────────────────────
+// ─── Detecção de sinal fraco ────────────────────────────────────────────────
 setInterval(() => {
   if (signalState.status !== 'live' && signalState.status !== 'weak') return;
   if (activeSessions.size === 0) return;
@@ -152,6 +152,7 @@ setInterval(() => {
     if (!session) { activeSessions.delete(id); return; }
 
     const bitrateKbps = typeof session.bitrate === 'number' ? session.bitrate : 0;
+    // Não descarta bitrate 0 aqui — pode ser leitura inicial; só classifica se > 0
     if (bitrateKbps <= 0) return;
 
     const prevStatus = signalState.status;
@@ -201,13 +202,23 @@ setInterval(() => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.flushHeaders();
 
+    // Envia estado atual imediatamente
     res.write(`data: ${JSON.stringify({
       status: signalState.status, bitrate: signalState.bitrate,
       streamPath: signalState.streamPath, lostAt: signalState.lostAt, ts: Date.now()
     })}\n\n`);
 
     signalState.listeners.add(res);
-    req.on('close', () => signalState.listeners.delete(res));
+
+    // Heartbeat a cada 25s para manter a conexão viva no OBS Browser Source
+    const heartbeat = setInterval(() => {
+      try { res.write(': heartbeat\n\n'); } catch (_) {}
+    }, 25000);
+
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      signalState.listeners.delete(res);
+    });
   });
 
   app.get('/signal/status', (req, res) => {

@@ -8,7 +8,7 @@
 
 [![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933?style=flat-square&logo=node.js)](https://nodejs.org/)
 [![Docker](https://img.shields.io/badge/Docker-Suportado-2496ED?style=flat-square&logo=docker)](https://docker.com/)
-[![SQLite](https://img.shields.io/badge/SQLite-Banco_de_Dados-003B57?style=flat-square&logo=sqlite)](https://sqlite.org/)
+[![sql.js](https://img.shields.io/badge/sql.js-SQLite%2FWASM-003B57?style=flat-square&logo=sqlite)](https://sql.js.org/)
 [![OBS](https://img.shields.io/badge/OBS-28%2B-302E31?style=flat-square&logo=obs-studio)](https://obsproject.com/)
 [![PrismLive](https://img.shields.io/badge/PrismLive-Android%20%2F%20iOS-FF6B35?style=flat-square)](https://prismlive.com/)
 
@@ -34,7 +34,7 @@ Celular (PrismLive)  →  Servidor IRL (PC ou VPS)  →  OBS  →  Twitch / YouT
 | Recurso | Descrição |
 |---------|-----------|
 | 📺 **Player ao vivo** | Monitor HTTP-FLV de baixa latência no dashboard |
-| 🔑 **Chaves de stream** | Crie, renomeie e remova chaves (salvas no SQLite) |
+| 🔑 **Chaves de stream** | Crie, renomeie e remova chaves (salvas no sql.js/WASM) |
 | 📊 **Dashboard em tempo real** | CPU, RAM, bitrate e status via SSE |
 | 🎛️ **Controle OBS** | Troque cenas, inicie/pare stream remotamente via WebSocket |
 | 📜 **Logs ao vivo** | Terminal de logs do servidor com filtros e export |
@@ -42,7 +42,7 @@ Celular (PrismLive)  →  Servidor IRL (PC ou VPS)  →  OBS  →  Twitch / YouT
 | 🌙 **Tema claro/escuro** | Toggle persistido no localStorage |
 | 📱 **PWA** | Instalável como app no celular/desktop |
 | 🔁 **Auto-reconexão OBS** | Backoff exponencial automático em quedas |
-| 🗄️ **SQLite** | Banco de dados local — sem necessidade de PostgreSQL/MySQL |
+| 🗄️ **sql.js (WASM)** | SQLite puro via WebAssembly — sem Python, sem Visual C++, sem compilação nativa |
 | 🐳 **Docker** | Deploy em VPS com um único comando |
 
 ---
@@ -230,6 +230,7 @@ IRL/
 ├── .env.example             ← Template de variáveis de ambiente
 ├── instalar.bat             ← Instalação Windows (desenvolvimento)
 ├── iniciar.bat              ← Inicialização Windows (desenvolvimento)
+├── atualizar.bat            ← Atualiza o projeto (git pull + reinstala dependências)
 ├── data/                    ← Dados persistentes (Docker)
 │   ├── irl.db               ← Banco SQLite (criado automaticamente)
 │   └── media/               ← Segmentos HLS gerados
@@ -240,7 +241,7 @@ IRL/
 │   ├── overlay/             ← Overlay HTML para o OBS
 │   └── src/
 │       ├── index.js         ← Entry point
-│       ├── db.js            ← Módulo SQLite central
+│       ├── db.js            ← Módulo sql.js (SQLite/WASM) central
 │       ├── middleware/
 │       │   └── auth.js      ← Verificação JWT
 │       └── routes/
@@ -300,10 +301,11 @@ IRL/
 </details>
 
 <details>
-<summary><b>Erro de compilação do better-sqlite3 no Docker</b></summary>
+<summary><b>Erro de compilação de módulo nativo no Docker</b></summary>
 
-- A imagem Alpine já inclui `python3 make g++` para compilar módulos nativos
-- Se ainda falhar, use a imagem base `node:20` (Debian) em vez de `node:20-alpine`
+- O projeto usa **sql.js** (SQLite compilado para WebAssembly) — **não há módulos nativos** para compilar
+- Nenhuma dependência de `python3`, `make` ou `g++` é necessária
+- Se encontrar erros de build, verifique se está usando a imagem `node:20-alpine` conforme o Dockerfile
 
 </details>
 

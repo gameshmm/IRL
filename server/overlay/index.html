@@ -278,9 +278,7 @@
 
   <script>
     // ─── Configuration ────────────────────────────────────────────────
-    // URL of the SSE endpoint — will be replaced by the correct host at runtime
-    const SSE_URL = window.location.origin.replace('3001', '3001') + '/signal/events';
-    // If loaded directly: use the server that served this file
+    // URL do SSE — usa a mesma origem do servidor que serviu este arquivo
     const serverBase = window.location.origin;
     const sseUrl = `${serverBase}/signal/events`;
 
@@ -315,6 +313,7 @@
       elReconnecting.classList.add('visible');
       elLost.classList.remove('visible');
       elWeak.classList.remove('visible');
+      elScanlines.classList.remove('visible');
     }
 
     function hideAll() {
@@ -325,9 +324,11 @@
       stopLostTimer();
     }
 
-    function startLostTimer() {
-      stopLostTimer();
-      if (!lostAt) { lostAt = new Date(); }
+    function startLostTimer(since) {
+      // Para o intervalo anterior sem resetar lostAt
+      if (lostInterval) { clearInterval(lostInterval); lostInterval = null; }
+      // Só define lostAt se ainda não foi definido (para não resetar)
+      if (!lostAt) { lostAt = since || new Date(); }
       lostInterval = setInterval(() => {
         const elapsed = Math.floor((Date.now() - lostAt.getTime()) / 1000);
         const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
@@ -367,11 +368,14 @@
     }
 
     function handleSignal(data) {
+      // Ignora eventos de heartbeat (sem status)
+      if (!data.status) return;
       console.log('[OVERLAY] signal:', data.status, 'bitrate:', data.bitrate);
 
       switch (data.status) {
         case 'lost':
-          lostAt = data.lostAt ? new Date(data.lostAt) : new Date();
+          // Preserva o lostAt vindo do servidor (não sobrescreve se já existe)
+          if (data.lostAt && !lostAt) { lostAt = new Date(data.lostAt); }
           showLost();
           break;
         case 'weak':

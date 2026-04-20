@@ -229,7 +229,7 @@ export default function KeysPage() {
       {showCreate && (
         <div className="card create-key-form animate-fadeIn" style={{ marginBottom: 24 }}>
           <h3 style={{ marginBottom: 14 }}>Nova Chave de Transmissão</h3>
-          <div className="flex gap-3 items-center">
+          <div className="flex gap-3 items-center create-key-form-row">
             <div className="form-group" style={{ flex: 1 }}>
               <label className="form-label">Nome / Identificador (opcional)</label>
               <input
@@ -311,7 +311,7 @@ export default function KeysPage() {
       <style>{`
         .keys-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
           gap: 16px;
         }
         .keys-error {
@@ -325,8 +325,8 @@ export default function KeysPage() {
           margin-bottom: 20px;
         }
         .key-card { transition: all 0.3s ease; }
-        .key-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-        .key-card-info { display: flex; align-items: center; gap: 12px; }
+        .key-card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; gap: 8px; }
+        .key-card-info { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
         .key-card-icon {
           width: 36px; height: 36px;
           background: rgba(108,99,255,0.12);
@@ -335,11 +335,18 @@ export default function KeysPage() {
           display: flex; align-items: center; justify-content: center;
           flex-shrink: 0;
         }
-        .key-card-label { font-size: 0.9rem; font-weight: 600; color: var(--text-primary); }
+        .key-card-label { font-size: 0.9rem; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .key-card-date { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
-        .key-card-actions { display: flex; gap: 6px; }
+        .key-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
         .key-card-value { margin-top: 8px; }
         .create-key-form { border-color: var(--border-glow); }
+
+        @media (max-width: 768px) {
+          .keys-grid { grid-template-columns: 1fr; }
+          .create-key-form-row { flex-direction: column; align-items: stretch; }
+          .create-key-form-row .form-group { width: 100%; }
+          .create-key-form-row .flex { justify-content: flex-end; }
+        }
       `}</style>
     </div>
   );

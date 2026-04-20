@@ -23,9 +23,29 @@ if not exist "%~dp0dashboard\node_modules" (
     exit /b 1
 )
 
-:: Define caminhos sem espaco no final (necessario para cmd /k)
+:: Define caminhos
 set SERVER_DIR=%~dp0server
 set DASH_DIR=%~dp0dashboard
+
+:: Detecta IP do Tailscale (range 100.x.x.x)
+set LOCAL_IP=
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /r "100\.[0-9]"') do (
+    set LINE=%%a
+    set LINE=!LINE: =!
+    if not defined LOCAL_IP set LOCAL_IP=!LINE!
+)
+
+:: Fallback: primeiro IPv4 que nao seja loopback
+if not defined LOCAL_IP (
+    for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4"') do (
+        set LINE=%%a
+        set LINE=!LINE: =!
+        if not defined LOCAL_IP (
+            echo !LINE! | findstr /v "127.0.0.1" >nul 2>&1 && set LOCAL_IP=!LINE!
+        )
+    )
+)
+if not defined LOCAL_IP set LOCAL_IP=SEU-IP
 
 :: Inicia o servidor em janela separada
 echo  Iniciando servidor de midia (RTMP + API)...
@@ -46,18 +66,21 @@ echo  =========================================
 echo    Sistema iniciado!
 echo  =========================================
 echo.
+echo  [PC - localhost]
 echo  Painel:    http://localhost:5173
 echo  API:       http://localhost:3001
-echo  RTMP:      rtmp://localhost:1935/live
-echo  FLV:       http://localhost:8000/live/<chave>.flv
+echo.
+echo  [Celular / Tailscale]
+echo  Painel:    http://%LOCAL_IP%:5173
+echo  API:       http://%LOCAL_IP%:3001
+echo  RTMP:      rtmp://%LOCAL_IP%:1935/live
+echo  FLV:       http://%LOCAL_IP%:8000/live/<chave>.flv
 echo.
 echo  Login:
 echo    Usuario: admin
 echo    Senha:   admin123
 echo.
 echo  Abrindo navegador...
-
-:: Abre o navegador
 start http://localhost:5173
 
 echo.

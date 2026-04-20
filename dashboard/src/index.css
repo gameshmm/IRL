@@ -386,3 +386,65 @@ code, pre {
   word-break: break-all;
   user-select: all;
 }
+
+/* ════════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE — Global overrides (≤ 768px)
+   ════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* Typography scale-down */
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.2rem; }
+  h3 { font-size: 1rem; }
+
+  /* Page header */
+  .page-header { margin-bottom: 18px; }
+  .page-header h1 { font-size: 1.35rem; }
+  .page-header p  { font-size: 0.82rem; }
+
+  /* Cards: menos padding no mobile */
+  .card { padding: 16px; }
+
+  /* Buttons: área de toque maior */
+  .btn { padding: 11px 18px; min-height: 44px; }
+  .btn-sm { padding: 9px 14px; min-height: 40px; font-size: 0.82rem; }
+  .btn-icon { padding: 10px; }
+
+  /* Forms: inputs grandes para toque */
+  .form-input {
+    padding: 12px 14px;
+    font-size: 1rem; /* Evita zoom automático no iOS */
+    min-height: 44px;
+  }
+
+  /* Grids viram 1 coluna */
+  .grid-2,
+  .grid-3,
+  .grid-auto {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Page header row wrap */
+  .page-header.flex {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  /* Toast ao fundo esquerdo (acima do bottom nav) */
+  .toast-container {
+    bottom: calc(68px + env(safe-area-inset-bottom));
+    right: 12px;
+    left: 12px;
+  }
+  .toast { min-width: unset; width: 100%; }
+
+  /* Scrollbar invisível no mobile */
+  ::-webkit-scrollbar { width: 0; height: 0; }
+
+  /* Empty state menor */
+  .empty-state { padding: 32px 16px; }
+
+  /* Code block texto menor */
+  .code-block { font-size: 0.7rem; padding: 10px 12px; }
+}

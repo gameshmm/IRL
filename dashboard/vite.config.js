@@ -5,6 +5,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    host: true,        // Escuta em 0.0.0.0 — permite acesso via Tailscale/LAN
+    strictPort: true,  // Falha se a porta já estiver ocupada (evita porta aleatória)
     proxy: {
       // API REST, auth, logs SSE e status SSE
       '/api': {

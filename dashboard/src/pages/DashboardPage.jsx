@@ -337,7 +337,19 @@ export default function DashboardPage() {
         .chart-header h3 { font-size: 0.95rem; font-weight: 600; }
         .chart-value { font-size: 1.5rem; font-weight: 800; color: var(--accent-primary); }
 
-        .session-item { display: flex; align-items: center; gap: 12px; }
+        .session-item { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+        @media (max-width: 768px) {
+          .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+          }
+          .stat-card-value { font-size: 1.5rem; }
+          .chart-card { padding: 14px; }
+          .chart-header { flex-direction: column; align-items: flex-start; gap: 4px; }
+          .chart-value { font-size: 1.1rem; }
+          .stream-alert { flex-wrap: wrap; }
+        }
       `}</style>
     </div>
   );
