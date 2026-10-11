@@ -1,25 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import {
   LayoutDashboard, Key, Settings, Tv2, LogOut, Zap,
   Menu, X, ChevronRight, Activity, MonitorPlay,
-  WifiOff, Wifi, AlertTriangle, Terminal, Sun, Moon, BookOpen, Youtube
+  WifiOff, Wifi, AlertTriangle, Terminal, Sun, Moon, BookOpen, Youtube, Radio
 } from 'lucide-react';
 
-const navItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/player',    icon: Tv2,             label: 'Monitor'   },
-  { to: '/keys',      icon: Key,             label: 'Chaves'    },
-  { to: '/obs',       icon: MonitorPlay,     label: 'OBS'       },
-  { to: '/youtube',   icon: Youtube,         label: 'Chat YT'   },
-  { to: '/history',   icon: BookOpen,        label: 'Histórico' },
-  { to: '/logs',      icon: Terminal,        label: 'Logs'      },
-  { to: '/settings',  icon: Settings,        label: 'Config'    },
-];
-
-// Labels completos para a sidebar desktop
 const navItemsFull = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard'        },
   { to: '/player',    icon: Tv2,             label: 'Monitor ao Vivo'  },
@@ -31,10 +20,12 @@ const navItemsFull = [
   { to: '/settings',  icon: Settings,        label: 'Configurações'    },
 ];
 
-const SIGNAL_TOAST_CONFIG = {
-  weak:    { icon: AlertTriangle, color: '#ff9f43', bg: 'rgba(255,159,67,0.12)',  border: 'rgba(255,159,67,0.35)', label: '⚠ Sinal Fraco'   },
-  lost:    { icon: WifiOff,       color: '#ff4757', bg: 'rgba(255,71,87,0.12)',   border: 'rgba(255,71,87,0.35)',  label: '✕ Sinal Perdido' },
-  offline: { icon: WifiOff,       color: '#636e72', bg: 'rgba(99,110,114,0.12)', border: 'rgba(99,110,114,0.3)', label: '— Offline'        },
+const SIGNAL_CONFIG = {
+  live:    { label: 'LIVE AO VIVO', badgeClass: 'badge-live', icon: Radio, color: '#00f59b' },
+  weak:    { label: 'SINAL FRACO',  badgeClass: 'badge-weak', icon: AlertTriangle, color: '#ffb800' },
+  lost:    { label: 'SEM SINAL',    badgeClass: 'badge-offline', icon: WifiOff, color: '#ff2a5f' },
+  offline: { label: 'OFFLINE',      badgeClass: 'badge-offline', icon: WifiOff, color: '#64748b' },
+  connecting: { label: 'CONECTANDO', badgeClass: 'badge-weak', icon: Activity, color: '#00f2fe' }
 };
 
 export default function Layout() {
@@ -49,14 +40,12 @@ export default function Layout() {
   const [signal, setSignal] = useState({ status: 'offline', bitrate: 0 });
   const [toastVisible, setToastVisible] = useState(false);
 
-  // Fecha o menu mobile ao navegar
   useEffect(() => { setMobileMenuOpen(false); }, [location.pathname]);
 
-  // Polling do servidor
+  // Polling de saúde do servidor
   useEffect(() => {
     const checkStatus = async () => {
       try {
-        const { default: axios } = await import('axios');
         await axios.get('/api/status');
         setServerStatus('online');
       } catch {
@@ -68,7 +57,7 @@ export default function Layout() {
     return () => clearInterval(interval);
   }, []);
 
-  // SSE global de sinal
+  // SSE de sinal em tempo real
   useEffect(() => {
     const es = new EventSource('/signal/events');
     es.onmessage = (e) => {
@@ -91,8 +80,8 @@ export default function Layout() {
     navigate('/login');
   };
 
-  // Página atual para o header mobile
-  const currentPage = navItemsFull.find(n => location.pathname.startsWith(n.to));
+  const currentNav = navItemsFull.find(n => location.pathname.startsWith(n.to));
+  const signalInfo = SIGNAL_CONFIG[signal.status] || SIGNAL_CONFIG.offline;
 
   return (
     <div className="layout">
@@ -107,10 +96,10 @@ export default function Layout() {
           <Menu size={22} />
         </button>
         <div className="mobile-header-brand">
-          <div className="sidebar-brand-icon" style={{ width: 28, height: 28 }}>
-            <Zap size={14} color="#fff" />
+          <div className="sidebar-brand-icon" style={{ width: 30, height: 30 }}>
+            <Zap size={16} color="#050811" />
           </div>
-          <span>{currentPage?.label || 'IRL Stream'}</span>
+          <span>{currentNav?.label || 'IRL Stream'}</span>
         </div>
         <div className="mobile-header-actions">
           <button
@@ -120,26 +109,25 @@ export default function Layout() {
           >
             {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
           </button>
-          <div className={`mobile-status-dot mobile-status-dot--${serverStatus}`} title={`Servidor: ${serverStatus}`} />
+          <div className={`mobile-status-dot mobile-status-dot--${serverStatus}`} />
         </div>
       </header>
 
-      {/* ─── MOBILE DRAWER OVERLAY ─── */}
+      {/* ─── MOBILE OVERLAY ─── */}
       {mobileMenuOpen && (
         <div className="mobile-overlay" onClick={() => setMobileMenuOpen(false)} />
       )}
 
-      {/* ─── SIDEBAR (desktop) / DRAWER (mobile) ─── */}
+      {/* ─── SIDEBAR ─── */}
       <aside className={`sidebar ${sidebarOpen ? 'sidebar--open' : 'sidebar--collapsed'} ${mobileMenuOpen ? 'sidebar--mobile-open' : ''}`}>
-        {/* Brand */}
         <div className="sidebar-brand">
           <div className="sidebar-brand-icon">
-            <Zap size={20} color="#fff" />
+            <Zap size={22} color="#050811" />
           </div>
           {sidebarOpen && (
             <div className="sidebar-brand-text">
-              <span className="sidebar-brand-name">IRL Stream</span>
-              <span className="sidebar-brand-version">v1.0.0</span>
+              <span className="sidebar-brand-name">IRL Stream Pro</span>
+              <span className="sidebar-brand-version">Broadcast Studio</span>
             </div>
           )}
           <button
@@ -149,7 +137,6 @@ export default function Layout() {
           >
             {sidebarOpen ? <X size={16} /> : <Menu size={16} />}
           </button>
-          {/* Botão fechar drawer (mobile) */}
           <button
             className="sidebar-toggle sidebar-toggle--mobile-close"
             onClick={() => setMobileMenuOpen(false)}
@@ -159,13 +146,27 @@ export default function Layout() {
           </button>
         </div>
 
-        {/* Server Status */}
+        {/* Live Broadcast Badge */}
         {sidebarOpen && (
-          <div className={`sidebar-status-bar sidebar-status-bar--${serverStatus}`}>
-            <Activity size={13} />
-            <span>
-              Servidor: {serverStatus === 'online' ? 'Online' : serverStatus === 'offline' ? 'Offline' : 'Verificando...'}
-            </span>
+          <div className="sidebar-broadcast-card">
+            <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
+              <span className={`badge ${signalInfo.badgeClass}`}>
+                {signalInfo.label}
+              </span>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                {serverStatus === 'online' ? 'SVR OK' : 'SVR OFF'}
+              </span>
+            </div>
+            {signal.status === 'live' || signal.status === 'weak' ? (
+              <div className="flex items-center justify-between" style={{ fontSize: '0.8rem', marginTop: 4 }}>
+                <span style={{ color: 'var(--text-muted)' }}>Bitrate:</span>
+                <span className="font-mono" style={{ color: signalInfo.color, fontWeight: 700 }}>
+                  {signal.bitrate >= 1000
+                    ? `${(signal.bitrate / 1000).toFixed(1)} Mbps`
+                    : `${signal.bitrate} kbps`}
+                </span>
+              </div>
+            ) : null}
           </div>
         )}
 
@@ -180,7 +181,7 @@ export default function Layout() {
               }
               title={!sidebarOpen ? label : undefined}
             >
-              <Icon size={18} />
+              <Icon size={19} />
               {sidebarOpen && <span>{label}</span>}
               {sidebarOpen && <ChevronRight size={14} className="sidebar-nav-arrow" />}
             </NavLink>
@@ -196,7 +197,7 @@ export default function Layout() {
             {sidebarOpen && (
               <div className="sidebar-user-info">
                 <span className="sidebar-user-name">{user?.username || 'admin'}</span>
-                <span className="sidebar-user-role">Administrador</span>
+                <span className="sidebar-user-role">Streamer Master</span>
               </div>
             )}
           </div>
@@ -204,7 +205,6 @@ export default function Layout() {
             className="sidebar-logout-btn"
             onClick={toggleTheme}
             title={theme === 'dark' ? 'Tema Claro' : 'Tema Escuro'}
-            style={{ marginRight: 4 }}
           >
             {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
           </button>
@@ -223,9 +223,9 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      {/* ─── BOTTOM NAV (mobile) ─── */}
+      {/* ─── BOTTOM NAV MOBILE ─── */}
       <nav className="bottom-nav">
-        {navItems.map(({ to, icon: Icon, label }) => (
+        {navItemsFull.slice(0, 5).map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
@@ -233,264 +233,151 @@ export default function Layout() {
               `bottom-nav-item ${isActive ? 'bottom-nav-item--active' : ''}`
             }
           >
-            <Icon size={20} />
-            <span>{label}</span>
+            <Icon size={19} />
+            <span>{label.split(' ')[0]}</span>
           </NavLink>
         ))}
       </nav>
 
       {/* ─── Signal Toast ─── */}
-      {(() => {
-        const cfg = SIGNAL_TOAST_CONFIG[signal.status];
-        if (!cfg) return null;
-        const Icon = cfg.icon;
-        return (
-          <div
-            className={`signal-toast ${toastVisible ? 'signal-toast--visible' : ''}`}
-            style={{ '--toast-color': cfg.color, '--toast-bg': cfg.bg, '--toast-border': cfg.border }}
-          >
-            <Icon size={15} style={{ flexShrink: 0 }} />
-            <div className="signal-toast-text">
-              <span className="signal-toast-label">{cfg.label}</span>
-              {signal.bitrate > 0 && signal.status === 'weak' && (
-                <span className="signal-toast-bitrate">
-                  {signal.bitrate >= 1000
-                    ? `${(signal.bitrate / 1000).toFixed(1)} Mbps`
-                    : `${signal.bitrate} kbps`}
-                </span>
-              )}
+      <div
+        className={`signal-toast ${toastVisible ? 'signal-toast--visible' : ''}`}
+        style={{
+          background: signal.status === 'lost' ? 'rgba(255, 42, 95, 0.9)' : 'rgba(255, 184, 0, 0.9)',
+          color: '#ffffff'
+        }}
+      >
+        <signalInfo.icon size={16} />
+        <div>
+          <div style={{ fontWeight: 800 }}>{signalInfo.label}</div>
+          {signal.bitrate > 0 && (
+            <div style={{ fontSize: '0.72rem', opacity: 0.9 }}>
+              Bitrate atual: {signal.bitrate} kbps
             </div>
-            <button
-              className="signal-toast-close"
-              style={{ display: signal.status === 'lost' ? 'none' : undefined }}
-              onClick={() => setToastVisible(false)}
-            >✕</button>
-          </div>
-        );
-      })()}
+          )}
+        </div>
+        <button
+          onClick={() => setToastVisible(false)}
+          style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', marginLeft: 8 }}
+        >
+          <X size={15} />
+        </button>
+      </div>
 
       <style>{`
-        /* ─── Layout Base ─── */
-        .layout {
-          display: flex;
-          min-height: 100vh;
-        }
-
-        /* ─── Mobile Header (hidden on desktop) ─── */
-        .mobile-header {
-          display: none;
-        }
-
-        /* ─── Sidebar ─── */
-        .sidebar {
-          position: sticky;
-          top: 0;
-          height: 100vh;
-          background: var(--bg-surface);
-          border-right: 1px solid var(--border-subtle);
-          display: flex;
-          flex-direction: column;
-          flex-shrink: 0;
-          transition: width 0.25s ease;
-          overflow: hidden;
-          z-index: 200;
-        }
-        .sidebar--open { width: 260px; }
-        .sidebar--collapsed { width: 64px; }
-
-        .sidebar-brand {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 20px 16px;
-          border-bottom: 1px solid var(--border-subtle);
-          flex-shrink: 0;
-        }
-        .sidebar-brand-icon {
-          width: 38px; height: 38px; flex-shrink: 0;
+        .sidebar-broadcast-card {
+          margin: 14px 14px 4px;
+          padding: 12px 14px;
           border-radius: var(--radius-sm);
-          background: var(--grad-primary);
-          display: flex; align-items: center; justify-content: center;
-          box-shadow: 0 4px 12px rgba(108,99,255,0.35);
-        }
-        .sidebar-brand-text { flex: 1; min-width: 0; }
-        .sidebar-brand-name {
-          display: block;
-          font-size: 0.95rem; font-weight: 700; color: var(--text-primary);
-          white-space: nowrap;
-        }
-        .sidebar-brand-version {
-          display: block;
-          font-size: 0.7rem; color: var(--text-muted);
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid var(--border-subtle);
         }
         .sidebar-toggle {
-          background: var(--bg-elevated);
+          background: rgba(255, 255, 255, 0.05);
           border: 1px solid var(--border-subtle);
-          border-radius: var(--radius-sm);
+          border-radius: var(--radius-xs);
           color: var(--text-muted);
-          cursor: pointer; padding: 5px;
-          display: flex; align-items: center; justify-content: center;
-          flex-shrink: 0;
+          cursor: pointer;
+          padding: 6px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           transition: all 0.2s;
         }
-        .sidebar-toggle:hover { color: var(--text-primary); border-color: var(--border-glow); }
+        .sidebar-toggle:hover {
+          color: var(--text-primary);
+          border-color: var(--border-hover);
+        }
         .sidebar-toggle--mobile-close { display: none; }
-
-        .sidebar-status-bar {
-          margin: 12px 12px 4px;
-          padding: 7px 12px;
-          border-radius: var(--radius-sm);
-          display: flex; align-items: center; gap: 7px;
-          font-size: 0.75rem; font-weight: 600;
+        .sidebar-nav-arrow {
+          margin-left: auto;
+          opacity: 0;
+          transition: opacity 0.2s;
         }
-        .sidebar-status-bar--online  { background: rgba(0,230,118,0.1);  color: var(--accent-green);  border: 1px solid rgba(0,230,118,0.2);  }
-        .sidebar-status-bar--offline { background: rgba(255,71,87,0.1);  color: var(--accent-red);    border: 1px solid rgba(255,71,87,0.2);  }
-        .sidebar-status-bar--checking{ background: rgba(255,165,2,0.1);  color: var(--accent-orange); border: 1px solid rgba(255,165,2,0.2);  }
-
-        .sidebar-nav {
-          flex: 1;
-          padding: 12px 8px;
-          display: flex; flex-direction: column; gap: 4px;
-          overflow-y: auto;
-        }
-        .sidebar-nav-item {
-          display: flex; align-items: center; gap: 10px;
-          padding: 10px 10px;
-          border-radius: var(--radius-sm);
-          color: var(--text-muted);
-          text-decoration: none;
-          font-size: 0.875rem; font-weight: 500;
-          transition: all 0.2s;
-          white-space: nowrap;
-          position: relative;
-        }
-        .sidebar-nav-item:hover { background: var(--bg-elevated); color: var(--text-primary); }
-        .sidebar-nav-item--active {
-          background: rgba(108,99,255,0.12);
-          color: var(--accent-primary);
-          border: 1px solid rgba(108,99,255,0.2);
-        }
-        .sidebar-nav-arrow { margin-left: auto; opacity: 0; transition: opacity 0.2s; }
         .sidebar-nav-item:hover .sidebar-nav-arrow,
-        .sidebar-nav-item--active .sidebar-nav-arrow { opacity: 1; }
-
+        .sidebar-nav-item--active .sidebar-nav-arrow {
+          opacity: 1;
+        }
         .sidebar-footer {
-          padding: 14px 12px;
+          padding: 16px 14px;
           border-top: 1px solid var(--border-subtle);
-          display: flex; align-items: center; gap: 10px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
         }
-        .sidebar-user { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
-        .sidebar-user-avatar {
-          width: 34px; height: 34px; flex-shrink: 0;
-          border-radius: 50%;
-          background: var(--grad-primary);
-          display: flex; align-items: center; justify-content: center;
-          font-size: 0.85rem; font-weight: 700; color: #fff;
-        }
-        .sidebar-user-info { min-width: 0; }
-        .sidebar-user-name {
-          display: block;
-          font-size: 0.85rem; font-weight: 600; color: var(--text-primary);
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-        .sidebar-user-role { display: block; font-size: 0.7rem; color: var(--text-muted); }
-        .sidebar-logout-btn {
-          background: var(--bg-elevated);
-          border: 1px solid var(--border-subtle);
-          border-radius: var(--radius-sm);
-          color: var(--text-muted);
-          cursor: pointer; padding: 7px;
-          display: flex; align-items: center; justify-content: center;
-          flex-shrink: 0; transition: all 0.2s;
-        }
-        .sidebar-logout-btn:hover {
-          background: rgba(255,71,87,0.1);
-          color: var(--accent-red);
-          border-color: rgba(255,71,87,0.3);
-        }
-
-        /* ─── Main Content ─── */
-        .main-content {
+        .sidebar-user {
+          display: flex;
+          align-items: center;
+          gap: 10px;
           flex: 1;
-          padding: 32px;
-          overflow-y: auto;
           min-width: 0;
         }
+        .sidebar-user-avatar {
+          width: 36px;
+          height: 36px;
+          border-radius: var(--radius-sm);
+          background: var(--grad-brand);
+          color: #050811;
+          font-weight: 800;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 12px rgba(0, 242, 254, 0.25);
+          flex-shrink: 0;
+        }
+        .sidebar-user-name {
+          font-size: 0.88rem;
+          font-weight: 700;
+          display: block;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .sidebar-user-role {
+          font-size: 0.72rem;
+          color: var(--text-muted);
+          display: block;
+        }
+        .sidebar-logout-btn {
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid var(--border-subtle);
+          border-radius: var(--radius-xs);
+          color: var(--text-muted);
+          cursor: pointer;
+          padding: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+        }
+        .sidebar-logout-btn:hover {
+          color: var(--text-primary);
+          border-color: var(--border-hover);
+        }
+        .mobile-header { display: none; }
+        .bottom-nav { display: none; }
 
-        /* ─── Bottom Nav (hidden on desktop) ─── */
-        .bottom-nav {
-          display: none;
-        }
-
-        /* ─── Signal Toast ─── */
-        .signal-toast {
-          position: fixed;
-          top: 20px; right: 24px;
-          z-index: 9999;
-          display: flex; align-items: center; gap: 10px;
-          padding: 10px 14px 10px 12px;
-          border-radius: 10px;
-          background: var(--toast-bg);
-          border: 1.5px solid var(--toast-border);
-          color: var(--toast-color);
-          font-size: 0.82rem; font-weight: 600;
-          backdrop-filter: blur(16px);
-          box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-          opacity: 0;
-          transform: translateX(calc(100% + 32px));
-          transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
-          pointer-events: none;
-        }
-        .signal-toast--visible {
-          opacity: 1;
-          transform: translateX(0);
-          pointer-events: auto;
-        }
-        .signal-toast-text { display: flex; flex-direction: column; gap: 1px; line-height: 1.2; }
-        .signal-toast-label { font-weight: 700; }
-        .signal-toast-bitrate { font-size: 0.7rem; opacity: 0.75; font-weight: 400; }
-        .signal-toast-close {
-          background: none; border: none;
-          color: var(--toast-color); cursor: pointer;
-          opacity: 0.6; font-size: 0.75rem;
-          padding: 0 0 0 4px; line-height: 1; transition: opacity 0.15s;
-        }
-        .signal-toast-close:hover { opacity: 1; }
-
-        /* ════════════════════════════════════════
-           MOBILE BREAKPOINT (≤ 768px)
-           ════════════════════════════════════════ */
         @media (max-width: 768px) {
-
-          /* Esconde a sidebar no mobile */
           .sidebar {
             position: fixed;
             top: 0; left: 0;
             height: 100%;
             width: 280px !important;
             transform: translateX(-100%);
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.3s var(--ease-spring);
             z-index: 300;
-            box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+            box-shadow: 10px 0 30px rgba(0,0,0,0.7);
           }
-          .sidebar--mobile-open {
-            transform: translateX(0);
-          }
-          /* Esconde toggle de collapse e mostra botão fechar */
+          .sidebar--mobile-open { transform: translateX(0); }
           .sidebar-toggle--desktop { display: none; }
           .sidebar-toggle--mobile-close { display: flex; }
-
-          /* Overlay escuro por trás do drawer */
           .mobile-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.6);
-            backdrop-filter: blur(2px);
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(6px);
             z-index: 250;
-            animation: fadeIn 0.2s ease;
           }
-
-          /* Header mobile */
           .mobile-header {
             display: flex;
             align-items: center;
@@ -498,69 +385,36 @@ export default function Layout() {
             position: sticky;
             top: 0;
             z-index: 100;
-            height: 56px;
+            height: 60px;
             padding: 0 16px;
-            background: var(--bg-surface);
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--border-subtle);
-            flex-shrink: 0;
           }
           .mobile-header-menu {
-            background: none; border: none;
-            color: var(--text-secondary);
-            cursor: pointer; padding: 4px;
-            display: flex; align-items: center;
+            background: none; border: none; color: var(--text-primary); cursor: pointer;
           }
           .mobile-header-brand {
-            display: flex; align-items: center; gap: 8px;
-            font-size: 0.95rem; font-weight: 700;
-            color: var(--text-primary);
+            display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1rem;
           }
-          .mobile-header-actions {
-            display: flex; align-items: center; gap: 10px;
-          }
+          .mobile-header-actions { display: flex; align-items: center; gap: 10px; }
           .mobile-status-dot {
-            width: 8px; height: 8px;
-            border-radius: 50%;
+            width: 9px; height: 9px; border-radius: 50%;
           }
-          .mobile-status-dot--online  { background: var(--accent-green); box-shadow: 0 0 6px var(--accent-green); }
-          .mobile-status-dot--offline { background: var(--accent-red); }
-          .mobile-status-dot--checking{ background: var(--accent-orange); }
-
-          /* Layout vira coluna */
-          .layout {
-            flex-direction: column;
-          }
-
-          /* Main content sem sidebar */
-          .main-content {
-            padding: 16px 14px;
-            /* Espaço para o bottom nav */
-            padding-bottom: calc(16px + 64px + env(safe-area-inset-bottom));
-          }
-
-          /* Toast no topo, abaixo do header */
-          .signal-toast {
-            top: 64px;
-            right: 12px;
-            left: 12px;
-            font-size: 0.8rem;
-            transform: translateY(-80px);
-          }
-          .signal-toast--visible {
-            transform: translateY(0);
-          }
-
-          /* Bottom Navigation */
+          .mobile-status-dot--online { background: var(--emerald-live); box-shadow: 0 0 8px var(--emerald-live); }
+          .mobile-status-dot--offline { background: var(--crimson-alert); }
+          .mobile-status-dot--checking { background: var(--amber-warn); }
+          .layout { flex-direction: column; }
           .bottom-nav {
             display: flex;
             position: fixed;
             bottom: 0; left: 0; right: 0;
-            height: calc(60px + env(safe-area-inset-bottom));
+            height: calc(62px + env(safe-area-inset-bottom));
             padding-bottom: env(safe-area-inset-bottom);
-            background: var(--bg-surface);
-            border-top: 1px solid var(--border-subtle);
-            z-index: 100;
-            backdrop-filter: blur(16px);
+            background: var(--bg-glass);
+            backdrop-filter: blur(24px);
+            border-top: 1px solid var(--border-glass);
+            z-index: 150;
           }
           .bottom-nav-item {
             flex: 1;
@@ -571,19 +425,12 @@ export default function Layout() {
             gap: 3px;
             color: var(--text-muted);
             text-decoration: none;
-            font-size: 0.6rem;
-            font-weight: 600;
-            letter-spacing: 0.02em;
-            padding: 8px 4px;
+            font-size: 0.65rem;
+            font-weight: 700;
             transition: all 0.2s;
-            text-transform: uppercase;
-            -webkit-tap-highlight-color: transparent;
           }
           .bottom-nav-item--active {
-            color: var(--accent-primary);
-          }
-          .bottom-nav-item--active svg {
-            filter: drop-shadow(0 0 6px rgba(108,99,255,0.6));
+            color: var(--cyan-neon);
           }
         }
       `}</style>

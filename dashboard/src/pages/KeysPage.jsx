@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Key, Plus, Trash2, Copy, Check, RefreshCw, AlertCircle, Edit2, X, Link } from 'lucide-react';
+import {
+  Key, Plus, Trash2, Copy, Check, RefreshCw, AlertCircle, Edit2, X, Link,
+  Eye, EyeOff, ShieldCheck, Radio, Sparkles
+} from 'lucide-react';
 
 function KeyCard({ item, rtmpBase, onDelete, onRename }) {
   const [copied, setCopied] = useState(false);
@@ -9,6 +12,7 @@ function KeyCard({ item, rtmpBase, onDelete, onRename }) {
   const [editing, setEditing] = useState(false);
   const [editLabel, setEditLabel] = useState(item.label);
   const [saving, setSaving] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
 
   const copyKey = async () => {
     await navigator.clipboard.writeText(item.key);
@@ -24,7 +28,7 @@ function KeyCard({ item, rtmpBase, onDelete, onRename }) {
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`Remover a chave "${item.label}"?`)) return;
+    if (!window.confirm(`Tem certeza que deseja remover a chave "${item.label}"? Transmissões ativas usando esta chave serão derrubadas.`)) return;
     setDeleting(true);
     await onDelete(item.key);
     setDeleting(false);
@@ -41,25 +45,25 @@ function KeyCard({ item, rtmpBase, onDelete, onRename }) {
   const rtmpUrl = `${rtmpBase}/${item.key}`;
 
   return (
-    <div className="key-card card">
-      <div className="key-card-top">
-        <div className="key-card-info">
-          <div className="key-card-icon">
-            <Key size={16} />
+    <div className="key-credential-card">
+      <div className="flex items-center justify-between" style={{ marginBottom: 14 }}>
+        <div className="flex items-center gap-3">
+          <div className="key-badge-icon">
+            <Key size={18} color="var(--cyan-neon)" />
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div>
             {editing ? (
-              <div className="flex gap-2 items-center">
+              <div className="flex items-center gap-2">
                 <input
                   className="form-input"
-                  style={{ padding: '4px 10px', fontSize: '0.88rem', flex: 1 }}
+                  style={{ padding: '4px 10px', fontSize: '0.85rem' }}
                   value={editLabel}
                   onChange={e => setEditLabel(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') setEditing(false); }}
                   autoFocus
                 />
                 <button className="btn btn-primary btn-sm btn-icon" onClick={handleRename} disabled={saving}>
-                  {saving ? <span className="loader" style={{ width: 13, height: 13 }} /> : <Check size={14} />}
+                  <Check size={14} />
                 </button>
                 <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setEditing(false)}>
                   <X size={14} />
@@ -67,64 +71,66 @@ function KeyCard({ item, rtmpBase, onDelete, onRename }) {
               </div>
             ) : (
               <>
-                <p className="key-card-label">{item.label}</p>
-                <p className="key-card-date">
+                <div style={{ fontWeight: 800, fontSize: '1.05rem' }}>{item.label}</div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
                   Criada em: {item.createdAt ? new Date(item.createdAt).toLocaleString('pt-BR') : '—'}
-                </p>
+                </div>
               </>
             )}
           </div>
         </div>
+
         {!editing && (
-          <div className="key-card-actions">
-            <button
-              className="btn btn-ghost btn-sm btn-icon"
-              onClick={() => { setEditLabel(item.label); setEditing(true); }}
-              title="Renomear chave"
-            >
-              <Edit2 size={15} />
+          <div className="flex items-center gap-2">
+            <button className="btn-icon btn-ghost" onClick={() => { setEditLabel(item.label); setEditing(true); }} title="Renomear">
+              <Edit2 size={14} />
             </button>
-            <button
-              className="btn btn-ghost btn-sm btn-icon"
-              onClick={copyKey}
-              title="Copiar chave"
-            >
-              {copied ? <Check size={15} color="var(--accent-green)" /> : <Copy size={15} />}
-            </button>
-            <button
-              className="btn btn-danger btn-sm btn-icon"
-              onClick={handleDelete}
-              disabled={deleting}
-              title="Remover chave"
-            >
-              {deleting ? <span className="loader" style={{ width: 14, height: 14 }} /> : <Trash2 size={15} />}
+            <button className="btn-icon btn-ghost" onClick={handleDelete} disabled={deleting} title="Excluir">
+              <Trash2 size={14} color="var(--crimson-alert)" />
             </button>
           </div>
         )}
       </div>
 
-      <div className="key-card-value">
-        <code className="code-block">{item.key}</code>
-      </div>
-
-      <div style={{ marginTop: 12 }}>
-        <div className="flex items-center" style={{ marginBottom: 4, gap: 8 }}>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>URL de Stream RTMP:</p>
+      {/* Secret Key Display */}
+      <div className="key-secret-box">
+        <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+            Chave de Transmissão (Stream Key)
+          </span>
           <button
-            className="btn btn-ghost btn-sm"
-            style={{ padding: '2px 8px', fontSize: '0.7rem' }}
-            onClick={copyRtmpUrl}
-            title="Copiar URL RTMP completa"
+            className="btn-link-action"
+            onClick={() => setShowSecret(!showSecret)}
           >
-            {copiedUrl
-              ? <><Check size={11} color="var(--accent-green)" /> Copiado!</>
-              : <><Link size={11} /> Copiar URL</>
-            }
+            {showSecret ? <><EyeOff size={13} /> Ocultar</> : <><Eye size={13} /> Visualizar</>}
           </button>
         </div>
-        <code className="code-block" style={{ fontSize: '0.72rem' }}>
+
+        <div className="flex items-center justify-between key-value-row">
+          <span className="font-mono" style={{ fontSize: '0.92rem', letterSpacing: showSecret ? 'normal' : '0.2em' }}>
+            {showSecret ? item.key : '••••••••••••••••'}
+          </span>
+          <button className="btn btn-ghost btn-sm" onClick={copyKey}>
+            {copied ? <Check size={13} color="var(--emerald-live)" /> : <Copy size={13} />}
+            {copied ? 'Copiada' : 'Copiar'}
+          </button>
+        </div>
+      </div>
+
+      {/* Full RTMP URL */}
+      <div style={{ marginTop: 14 }}>
+        <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+            URL RTMP Completa para o PrismLive:
+          </span>
+          <button className="btn-link-action" onClick={copyRtmpUrl}>
+            {copiedUrl ? <Check size={13} color="var(--emerald-live)" /> : <Link size={13} />}
+            {copiedUrl ? 'Copiado!' : 'Copiar URL'}
+          </button>
+        </div>
+        <div className="code-block" style={{ fontSize: '0.76rem', padding: '8px 12px' }}>
           {rtmpUrl}
-        </code>
+        </div>
       </div>
     </div>
   );
@@ -137,13 +143,7 @@ export default function KeysPage() {
   const [creating, setCreating] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const [toast, setToast] = useState(null);
   const [rtmpBase, setRtmpBase] = useState('rtmp://<servidor>:1935/live');
-
-  const showToast = (msg, type = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000);
-  };
 
   const fetchKeys = useCallback(async () => {
     try {
@@ -151,15 +151,15 @@ export default function KeysPage() {
       const res = await axios.get('/api/keys');
       setKeys(res.data.keys);
       setError(null);
-      // Detecta IP do servidor para montar URL RTMP real
+
       try {
         const cfgRes = await axios.get('/api/config');
         const port = cfgRes.data?.rtmp?.port || 1935;
         const host = window.location.hostname;
         setRtmpBase(`rtmp://${host}:${port}/live`);
       } catch (_) {}
-    } catch (err) {
-      setError('Erro ao carregar as chaves. Verifique a conexão com o servidor.');
+    } catch {
+      setError('Erro ao carregar chaves');
     } finally {
       setLoading(false);
     }
@@ -167,186 +167,172 @@ export default function KeysPage() {
 
   useEffect(() => { fetchKeys(); }, [fetchKeys]);
 
-  const createKey = async () => {
+  const handleCreate = async (e) => {
+    e.preventDefault();
     setCreating(true);
     try {
-      const res = await axios.post('/api/keys', { label: newLabel || undefined });
-      setKeys(prev => [...prev, res.data]);
+      await axios.post('/api/keys', { label: newLabel.trim() || undefined });
       setNewLabel('');
       setShowCreate(false);
-      showToast(`Chave "${res.data.label}" criada com sucesso!`);
-    } catch (err) {
-      showToast('Erro ao criar chave', 'error');
+      await fetchKeys();
+    } catch {
+      setError('Erro ao gerar nova chave');
     } finally {
       setCreating(false);
     }
   };
 
-  const deleteKey = async (key) => {
+  const handleDelete = async (key) => {
     try {
       await axios.delete(`/api/keys/${key}`);
       setKeys(prev => prev.filter(k => k.key !== key));
-      showToast('Chave removida com sucesso');
-    } catch (err) {
-      showToast('Erro ao remover chave', 'error');
+    } catch {
+      setError('Erro ao remover chave');
     }
   };
 
-  const renameKey = async (key, label) => {
+  const handleRename = async (key, label) => {
     try {
       await axios.put(`/api/keys/${key}`, { label });
-      setKeys(prev => prev.map(k => k.key === key ? { ...k, label } : k));
-      showToast(`Chave renomeada para "${label}"`);
+      setKeys(prev => prev.map(k => (k.key === key ? { ...k, label } : k)));
       return true;
-    } catch (err) {
-      showToast('Erro ao renomear chave', 'error');
+    } catch {
       return false;
     }
   };
 
   return (
-    <div className="animate-fadeInUp">
-      <div className="page-header flex justify-between items-center" style={{ flexWrap: 'wrap', gap: 12 }}>
+    <div className="keys-view animate-fadeIn">
+      <div className="page-header">
         <div>
-          <h1>Chaves de Stream</h1>
-          <p>Gerencie as chaves autorizadas para transmissão RTMP</p>
+          <h1>Chaves de Stream & Ingest</h1>
+          <p>Credenciais criptográficas seguras para transmissão do celular para o servidor</p>
         </div>
-        <div className="flex gap-2">
-          <button className="btn btn-ghost btn-sm" onClick={fetchKeys}>
-            <RefreshCw size={14} /> Atualizar
-          </button>
-          <button
-            id="create-key-btn"
-            className="btn btn-primary btn-sm"
-            onClick={() => setShowCreate(!showCreate)}
-          >
-            <Plus size={14} /> Nova Chave
-          </button>
-        </div>
+        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+          <Plus size={16} /> Gerar Nova Chave
+        </button>
       </div>
 
-      {/* Create form */}
+      {error && (
+        <div className="studio-alert studio-alert--lost" style={{ marginBottom: 20 }}>
+          <AlertCircle size={18} /> {error}
+        </div>
+      )}
+
+      {/* Modal / Card de Criação */}
       {showCreate && (
-        <div className="card create-key-form animate-fadeIn" style={{ marginBottom: 24 }}>
-          <h3 style={{ marginBottom: 14 }}>Nova Chave de Transmissão</h3>
-          <div className="flex gap-3 items-center create-key-form-row">
-            <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label">Nome / Identificador (opcional)</label>
+        <div className="card" style={{ marginBottom: 24, border: '1px solid var(--cyan-neon)' }}>
+          <div className="card-header">
+            <div className="card-title">
+              <Key size={18} color="var(--cyan-neon)" /> Criar Nova Chave de Transmissão
+            </div>
+            <button className="btn-icon btn-ghost" onClick={() => setShowCreate(false)}>
+              <X size={16} />
+            </button>
+          </div>
+          <form onSubmit={handleCreate}>
+            <div className="form-group" style={{ marginBottom: 14 }}>
+              <label className="form-label">Identificação / Nome do Canal</label>
               <input
-                id="new-key-label"
                 type="text"
                 className="form-input"
+                placeholder="Ex: Celular Principal 5G, Câmera Secundária..."
                 value={newLabel}
                 onChange={e => setNewLabel(e.target.value)}
-                placeholder="Ex: Stream Principal, Câmera 1..."
-                onKeyDown={e => e.key === 'Enter' && createKey()}
                 autoFocus
               />
             </div>
-            <div className="form-group" style={{ justifyContent: 'flex-end' }}>
-              <label className="form-label">&nbsp;</label>
-              <div className="flex gap-2">
-                <button className="btn btn-ghost" onClick={() => setShowCreate(false)}>Cancelar</button>
-                <button
-                  id="confirm-create-key-btn"
-                  className="btn btn-primary"
-                  onClick={createKey}
-                  disabled={creating}
-                >
-                  {creating
-                    ? <><span className="loader" style={{ width: 15, height: 15 }} /> Gerando...</>
-                    : <><Key size={14} /> Gerar Chave</>
-                  }
-                </button>
-              </div>
+            <div className="flex gap-2">
+              <button type="submit" className="btn btn-primary" disabled={creating}>
+                {creating ? 'Gerando...' : 'Confirmar e Gerar Chave'}
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => setShowCreate(false)}>
+                Cancelar
+              </button>
             </div>
-          </div>
-          <p style={{ marginTop: 10, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            A chave será gerada automaticamente como um token aleatório seguro.
-          </p>
+          </form>
         </div>
       )}
 
-      {error && (
-        <div className="keys-error">
-          <AlertCircle size={16} />
-          {error}
-        </div>
-      )}
-
+      {/* Grid de Chaves */}
       {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
-          <div className="loader" style={{ width: 36, height: 36, borderWidth: 3 }} />
+        <div className="empty-state">
+          <div className="loader" style={{ width: 40, height: 40 }} />
+          <p>Carregando credenciais...</p>
         </div>
       ) : keys.length === 0 ? (
-        <div className="empty-state card">
-          <Key size={48} />
-          <h3>Nenhuma chave cadastrada</h3>
-          <p>Crie sua primeira chave de transmissão para começar.</p>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
-            <Plus size={14} /> Criar primeira chave
+        <div className="card empty-state" style={{ padding: 48 }}>
+          <Key size={48} color="var(--text-muted)" style={{ opacity: 0.4, marginBottom: 10 }} />
+          <div style={{ fontWeight: 800, fontSize: '1.2rem' }}>Nenhuma Chave Cadastrada</div>
+          <p style={{ maxWidth: 460 }}>
+            Você precisa de pelo menos uma chave de stream para que o servidor autentique a transmissão vinda do celular.
+          </p>
+          <button className="btn btn-primary" style={{ marginTop: 14 }} onClick={() => setShowCreate(true)}>
+            <Plus size={16} /> Gerar Primeira Chave
           </button>
         </div>
       ) : (
-        <div className="keys-grid">
-          {keys.map(item => (
-            <KeyCard key={item.key} item={item} rtmpBase={rtmpBase} onDelete={deleteKey} onRename={renameKey} />
+        <div className="grid grid-2">
+          {keys.map(k => (
+            <KeyCard
+              key={k.key}
+              item={k}
+              rtmpBase={rtmpBase}
+              onDelete={handleDelete}
+              onRename={handleRename}
+            />
           ))}
         </div>
       )}
 
-      {/* Toast */}
-      {toast && (
-        <div className="toast-container">
-          <div className={`toast toast-${toast.type}`}>
-            {toast.type === 'success'
-              ? <Check size={16} color="var(--accent-green)" />
-              : <AlertCircle size={16} color="var(--accent-red)" />
-            }
-            {toast.msg}
-          </div>
-        </div>
-      )}
-
       <style>{`
-        .keys-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-          gap: 16px;
+        .key-credential-card {
+          background: var(--bg-glass-card);
+          backdrop-filter: blur(20px);
+          border: 1px solid var(--border-glass);
+          border-radius: var(--radius-lg);
+          padding: 22px;
+          box-shadow: var(--shadow-card);
+          transition: all 0.22s var(--ease-spring);
         }
-        .keys-error {
-          display: flex; align-items: center; gap: 8px;
-          background: rgba(255,71,87,0.1);
-          border: 1px solid rgba(255,71,87,0.25);
-          border-radius: var(--radius-md);
-          padding: 12px 16px;
-          color: var(--accent-red);
-          font-size: 0.875rem;
-          margin-bottom: 20px;
+        .key-credential-card:hover {
+          border-color: var(--border-hover);
+          transform: translateY(-2px);
+          box-shadow: var(--shadow-card), var(--shadow-glow-cyan);
         }
-        .key-card { transition: all 0.3s ease; }
-        .key-card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; gap: 8px; }
-        .key-card-info { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
-        .key-card-icon {
-          width: 36px; height: 36px;
-          background: rgba(108,99,255,0.12);
-          color: var(--accent-primary);
+        .key-badge-icon {
+          width: 38px;
+          height: 38px;
           border-radius: var(--radius-sm);
-          display: flex; align-items: center; justify-content: center;
+          background: rgba(0, 242, 254, 0.1);
+          border: 1px solid rgba(0, 242, 254, 0.25);
+          display: flex;
+          align-items: center;
+          justify-content: center;
           flex-shrink: 0;
         }
-        .key-card-label { font-size: 0.9rem; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .key-card-date { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
-        .key-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
-        .key-card-value { margin-top: 8px; }
-        .create-key-form { border-color: var(--border-glow); }
-
-        @media (max-width: 768px) {
-          .keys-grid { grid-template-columns: 1fr; }
-          .create-key-form-row { flex-direction: column; align-items: stretch; }
-          .create-key-form-row .form-group { width: 100%; }
-          .create-key-form-row .flex { justify-content: flex-end; }
+        .key-secret-box {
+          background: rgba(0, 0, 0, 0.3);
+          border: 1px solid var(--border-subtle);
+          border-radius: var(--radius-sm);
+          padding: 12px 14px;
         }
+        .key-value-row {
+          margin-top: 4px;
+        }
+        .btn-link-action {
+          background: none;
+          border: none;
+          color: var(--cyan-neon);
+          font-size: 0.75rem;
+          font-weight: 700;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          transition: opacity 0.2s;
+        }
+        .btn-link-action:hover { opacity: 0.8; }
       `}</style>
     </div>
   );

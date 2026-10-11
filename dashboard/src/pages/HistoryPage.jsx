@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
   Clock, Trash2, RefreshCw, BarChart3, TrendingUp,
-  Calendar, Timer, Award, Radio
+  Calendar, Timer, Award, Radio, AlertCircle
 } from 'lucide-react';
 
 function formatDuration(seconds) {
@@ -23,54 +23,6 @@ function formatDate(iso) {
   });
 }
 
-function StatBadge({ icon: Icon, label, value, color = 'purple' }) {
-  const colors = {
-    purple: { bg: 'rgba(108,99,255,0.1)', border: 'rgba(108,99,255,0.25)', text: 'var(--accent-primary)' },
-    green:  { bg: 'rgba(0,230,118,0.1)',  border: 'rgba(0,230,118,0.25)',  text: 'var(--accent-green)' },
-    orange: { bg: 'rgba(255,165,2,0.1)',  border: 'rgba(255,165,2,0.25)',  text: 'var(--accent-orange)' },
-    cyan:   { bg: 'rgba(0,212,255,0.1)',  border: 'rgba(0,212,255,0.25)',  text: 'var(--accent-secondary)' },
-  };
-  const c = colors[color];
-  return (
-    <div className="stat-badge-card" style={{ background: c.bg, border: `1px solid ${c.border}` }}>
-      <Icon size={18} style={{ color: c.text, flexShrink: 0 }} />
-      <div>
-        <p className="stat-badge-value" style={{ color: c.text }}>{value}</p>
-        <p className="stat-badge-label">{label}</p>
-      </div>
-    </div>
-  );
-}
-
-function SessionRow({ session, index }) {
-  const dur = session.durationSeconds;
-  const isLong = dur && dur > 3600;
-
-  return (
-    <div className={`history-row ${index % 2 === 0 ? 'history-row--even' : ''}`}>
-      <div className="history-row-path">
-        <Radio size={13} style={{ color: 'var(--accent-red)', flexShrink: 0 }} />
-        <code>{session.streamPath}</code>
-      </div>
-      <div className="history-row-meta">
-        <span className="history-cell">
-          <Calendar size={12} />
-          {formatDate(session.startedAt)}
-        </span>
-        <span className="history-cell">
-          <Timer size={12} />
-          <span style={isLong ? { color: 'var(--accent-green)', fontWeight: 700 } : {}}>
-            {formatDuration(session.durationSeconds)}
-          </span>
-        </span>
-        <span className="history-cell history-ended">
-          Fim: {formatDate(session.endedAt)}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 export default function HistoryPage() {
   const [data, setData] = useState({ sessions: [], total: 0, stats: null });
   const [loading, setLoading] = useState(true);
@@ -85,7 +37,7 @@ export default function HistoryPage() {
       setData(res.data);
       setError(null);
     } catch {
-      setError('Erro ao carregar histórico.');
+      setError('Erro ao carregar histórico de transmissões.');
     } finally {
       setLoading(false);
     }
@@ -94,7 +46,7 @@ export default function HistoryPage() {
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
   const clearHistory = async () => {
-    if (!window.confirm('Tem certeza que deseja limpar todo o histórico?')) return;
+    if (!window.confirm('Tem certeza que deseja limpar todo o histórico de transmissões?')) return;
     setClearing(true);
     try {
       await axios.delete('/api/history');
@@ -109,133 +61,160 @@ export default function HistoryPage() {
   const { sessions, total, stats } = data;
 
   return (
-    <div className="animate-fadeInUp">
-      <div className="page-header flex justify-between items-center" style={{ flexWrap: 'wrap', gap: 12 }}>
+    <div className="history-view animate-fadeIn">
+      <div className="page-header flex justify-between items-center">
         <div>
-          <h1>Histórico de Sessões</h1>
-          <p>{total} sessão(ões) registrada(s) no banco de dados</p>
+          <h1>Histórico de Transmissões</h1>
+          <p>{total} sessão(ões) gravada(s) com estatísticas de duração e estabilidade</p>
         </div>
         <div className="flex gap-2">
           <button className="btn btn-ghost btn-sm" onClick={fetchHistory} disabled={loading}>
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Atualizar
+            <RefreshCw size={14} /> Atualizar
           </button>
           <button className="btn btn-danger btn-sm" onClick={clearHistory} disabled={clearing || sessions.length === 0}>
-            <Trash2 size={14} /> Limpar Tudo
+            <Trash2 size={14} /> Limpar Histórico
           </button>
         </div>
       </div>
 
-      {/* Estatísticas */}
-      {stats && (
-        <div className="history-stats-grid">
-          <StatBadge icon={BarChart3}  label="Total de lives"   value={stats.totalSessions}                    color="purple" />
-          <StatBadge icon={TrendingUp} label="Tempo total"      value={formatDuration(stats.totalSeconds)}     color="cyan" />
-          <StatBadge icon={Clock}      label="Duração média"    value={formatDuration(stats.avgSeconds)}       color="orange" />
-          <StatBadge icon={Award}      label="Longest live"     value={formatDuration(stats.maxSeconds)}       color="green" />
-        </div>
-      )}
-
       {error && (
-        <div style={{ color: 'var(--accent-red)', padding: '12px 0', fontSize: '0.875rem' }}>{error}</div>
+        <div className="studio-alert studio-alert--lost" style={{ marginBottom: 20 }}>
+          <AlertCircle size={18} /> {error}
+        </div>
       )}
 
-      {/* Lista */}
-      <div className="card history-list-card">
-        <div className="history-list-header">
-          <span>Sessão</span>
-          <span>Início</span>
-          <span>Duração</span>
-          <span>Fim</span>
+      {/* Métricas Agregadas */}
+      {stats && (
+        <div className="grid grid-4" style={{ marginBottom: 26 }}>
+          <div className="stat-card">
+            <div className="stat-card-header">
+              <span className="form-label">Total de Lives</span>
+              <div className="stat-card-icon stat-card-icon--violet">
+                <BarChart3 size={18} />
+              </div>
+            </div>
+            <div className="stat-card-value font-mono">{stats.totalSessions}</div>
+            <span className="stat-card-subtitle">Sessões registradas</span>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-card-header">
+              <span className="form-label">Tempo em Live</span>
+              <div className="stat-card-icon stat-card-icon--cyan">
+                <TrendingUp size={18} />
+              </div>
+            </div>
+            <div className="stat-card-value font-mono" style={{ fontSize: '1.6rem' }}>
+              {formatDuration(stats.totalSeconds)}
+            </div>
+            <span className="stat-card-subtitle">Tempo total transmitido</span>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-card-header">
+              <span className="form-label">Duração Média</span>
+              <div className="stat-card-icon stat-card-icon--green">
+                <Clock size={18} />
+              </div>
+            </div>
+            <div className="stat-card-value font-mono" style={{ fontSize: '1.6rem' }}>
+              {formatDuration(stats.avgSeconds)}
+            </div>
+            <span className="stat-card-subtitle">Por transmissão</span>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-card-header">
+              <span className="form-label">Maior Live</span>
+              <div className="stat-card-icon stat-card-icon--green">
+                <Award size={18} />
+              </div>
+            </div>
+            <div className="stat-card-value font-mono" style={{ fontSize: '1.6rem' }}>
+              {formatDuration(stats.maxSeconds)}
+            </div>
+            <span className="stat-card-subtitle">Recorde de transmissão</span>
+          </div>
+        </div>
+      )}
+
+      {/* Lista de Sessões */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontWeight: 800, fontSize: '1.05rem' }}>Registro de Sessões</div>
+          <span className="font-mono" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            Exibindo últimas {sessions.length}
+          </span>
         </div>
 
-        {loading ? (
-          <div className="history-loading">
-            <span className="loader" style={{ width: 24, height: 24 }} />
-            <p>Carregando histórico...</p>
-          </div>
-        ) : sessions.length === 0 ? (
-          <div className="empty-state" style={{ padding: '48px 0' }}>
-            <Clock size={40} />
-            <p>Nenhuma sessão registrada ainda.</p>
-            <small>As lives aparecem aqui automaticamente depois de finalizadas.</small>
+        {sessions.length === 0 ? (
+          <div className="empty-state" style={{ padding: 48 }}>
+            <Clock size={40} style={{ opacity: 0.3, marginBottom: 8 }} />
+            <div style={{ fontWeight: 700 }}>Nenhuma transmissão gravada no histórico</div>
+            <p>Assim que você encerrar uma transmissão RTMP, ela será registrada aqui com estatísticas de duração.</p>
           </div>
         ) : (
-          <>
-            {sessions.map((s, i) => <SessionRow key={s.id} session={s} index={i} />)}
-            {total > sessions.length && (
-              <div className="history-load-more">
-                <button className="btn btn-ghost btn-sm" onClick={() => setLimit(l => l + 50)}>
-                  Carregar mais ({total - sessions.length} restantes)
-                </button>
+          <div className="sessions-table">
+            {sessions.map((s, idx) => (
+              <div key={s.id || idx} className="session-item-row">
+                <div className="flex items-center gap-3">
+                  <div className="session-item-icon">
+                    <Radio size={14} color="var(--emerald-live)" />
+                  </div>
+                  <div>
+                    <div className="font-mono" style={{ fontWeight: 700, fontSize: '0.92rem' }}>
+                      {s.streamPath}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      Início: {formatDate(s.startedAt)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-6">
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Duração</div>
+                    <div className="font-mono" style={{ fontWeight: 800, color: 'var(--cyan-neon)', fontSize: '0.95rem' }}>
+                      {formatDuration(s.durationSeconds)}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', minWidth: 120 }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Encerrado em</div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                      {formatDate(s.endedAt)}
+                    </div>
+                  </div>
+                </div>
               </div>
-            )}
-          </>
+            ))}
+          </div>
         )}
       </div>
 
       <style>{`
-        .history-stats-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-          gap: 14px;
-          margin-bottom: 24px;
-        }
-        .stat-badge-card {
-          display: flex; align-items: center; gap: 12px;
-          padding: 14px 16px; border-radius: var(--radius-md);
-        }
-        .stat-badge-value { font-size: 1.2rem; font-weight: 800; line-height: 1; }
-        .stat-badge-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
-
-        .history-list-card { padding: 0; overflow: hidden; }
-        .history-list-header {
-          display: grid;
-          grid-template-columns: 2fr 1.3fr 0.8fr 1.3fr;
-          padding: 10px 18px;
-          border-bottom: 1px solid var(--border-subtle);
-          font-size: 0.72rem; text-transform: uppercase;
-          letter-spacing: 0.06em; color: var(--text-muted); font-weight: 600;
-        }
-        .history-row {
-          display: flex; flex-direction: column; gap: 6px;
-          padding: 12px 18px;
+        .session-item-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 16px 24px;
           border-bottom: 1px solid var(--border-subtle);
           transition: background 0.15s;
         }
-        .history-row--even { background: rgba(255,255,255,0.015); }
-        .history-row:hover { background: var(--bg-elevated); }
-        .history-row:last-child { border-bottom: none; }
-        .history-row-path {
-          display: flex; align-items: center; gap: 8px;
-          font-size: 0.8rem;
+        .session-item-row:last-child {
+          border-bottom: none;
         }
-        .history-row-path code {
-          color: var(--text-primary); word-break: break-all;
-          background: rgba(255,255,255,0.05); padding: 2px 8px; border-radius: 4px;
-          font-size: 0.78rem;
+        .session-item-row:hover {
+          background: rgba(255, 255, 255, 0.03);
         }
-        .history-row-meta {
-          display: grid;
-          grid-template-columns: 1fr 1fr 1fr;
-          gap: 8px;
-        }
-        .history-cell {
-          display: flex; align-items: center; gap: 5px;
-          font-size: 0.78rem; color: var(--text-secondary);
-        }
-        .history-ended { color: var(--text-muted); font-size: 0.72rem; }
-        .history-loading {
-          display: flex; flex-direction: column;
-          align-items: center; gap: 12px;
-          padding: 48px 0; color: var(--text-muted);
-        }
-        .history-load-more {
-          display: flex; justify-content: center;
-          padding: 16px 0; border-top: 1px solid var(--border-subtle);
-        }
-        @media (max-width: 600px) {
-          .history-list-header { display: none; }
-          .history-row-meta { grid-template-columns: 1fr 1fr; }
+        .session-item-icon {
+          width: 32px;
+          height: 32px;
+          border-radius: var(--radius-sm);
+          background: rgba(0, 245, 155, 0.1);
+          border: 1px solid rgba(0, 245, 155, 0.25);
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
       `}</style>
     </div>

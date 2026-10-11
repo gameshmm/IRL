@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Wifi, Lock, Eye, EyeOff, Zap } from 'lucide-react';
+import { Wifi, Lock, Eye, EyeOff, Zap, Shield, Sparkles, Radio } from 'lucide-react';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -17,36 +17,48 @@ export default function LoginPage() {
     try {
       await login(username, password);
     } catch (err) {
-      setError(err.response?.data?.error || 'Erro ao conectar com o servidor');
+      setError(err.response?.data?.error || 'Credenciais inválidas ou servidor indisponível');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="login-page">
-      {/* Background decoration */}
-      <div className="login-bg-orb login-bg-orb--1" />
-      <div className="login-bg-orb login-bg-orb--2" />
+    <div className="login-screen-wrapper">
+      {/* Luz ambiente de fundo (mesh blur) */}
+      <div className="ambient-sphere ambient-sphere--1" />
+      <div className="ambient-sphere ambient-sphere--2" />
 
-      <div className="login-container animate-fadeInUp">
-        {/* Logo */}
-        <div className="login-logo">
-          <div className="login-logo-icon">
-            <Zap size={28} color="#fff" />
+      {/* Cartão Holográfico Central */}
+      <div className="login-glass-card animate-fadeIn">
+        {/* Brand Header */}
+        <div className="login-brand-header">
+          <div className="login-brand-icon">
+            <Zap size={28} color="#050811" />
           </div>
           <div>
-            <h1 className="login-title">IRL Stream</h1>
-            <p className="login-subtitle">Dashboard de Gerenciamento</p>
+            <h1 className="login-title">IRL Stream Pro</h1>
+            <span className="login-badge-tag font-mono">BROADCAST STUDIO CORE</span>
           </div>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="login-form">
-          <div className="form-group">
-            <label className="form-label">Usuário</label>
+        <p className="login-description">
+          Acesse o console de telemetria, monitoramento de baixa latência e controle do OBS Studio.
+        </p>
+
+        {error && (
+          <div className="studio-alert studio-alert--lost" style={{ marginBottom: 18, fontSize: '0.82rem' }}>
+            <div className="flex items-center gap-2">
+              <Lock size={15} /> {error}
+            </div>
+          </div>
+        )}
+
+        {/* Formulário */}
+        <form onSubmit={handleSubmit}>
+          <div className="form-group" style={{ marginBottom: 14 }}>
+            <label className="form-label">Usuário Administrador</label>
             <input
-              id="login-username"
               type="text"
               className="form-input"
               value={username}
@@ -57,22 +69,21 @@ export default function LoginPage() {
             />
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Senha</label>
-            <div className="input-with-action">
+          <div className="form-group" style={{ marginBottom: 22 }}>
+            <label className="form-label">Chave Secreta de Acesso</label>
+            <div className="password-input-wrap">
               <input
-                id="login-password"
                 type={showPassword ? 'text' : 'password'}
                 className="form-input"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="••••••••••••"
                 autoComplete="current-password"
                 required
               />
               <button
                 type="button"
-                className="input-action-btn"
+                className="password-toggle-btn"
                 onClick={() => setShowPassword(!showPassword)}
                 tabIndex={-1}
               >
@@ -81,152 +92,142 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {error && (
-            <div className="login-error">
-              <Lock size={14} />
-              {error}
-            </div>
-          )}
-
           <button
-            id="login-submit"
             type="submit"
             className="btn btn-primary w-full"
+            style={{ padding: '13px', fontSize: '0.95rem' }}
             disabled={loading}
           >
             {loading ? (
-              <>
+              <span className="flex items-center gap-2">
                 <span className="loader" style={{ width: 16, height: 16 }} />
-                Autenticando...
-              </>
+                Autenticando Sessão...
+              </span>
             ) : (
-              <>
-                <Wifi size={16} />
-                Entrar no Dashboard
-              </>
+              <span className="flex items-center gap-2">
+                <Radio size={16} /> Entrar no Centro de Comando
+              </span>
             )}
           </button>
         </form>
 
-        <p className="login-hint">
-          Senha padrão: <code>admin123</code> — Altere nas configurações após o primeiro acesso.
-        </p>
+        <div className="login-footer-hint font-mono">
+          PADRÃO INICIAL: <code>admin</code> / <code>admin123</code>
+        </div>
       </div>
 
       <style>{`
-        .login-page {
+        .login-screen-wrapper {
           min-height: 100vh;
           display: flex;
           align-items: center;
           justify-content: center;
+          background: #06070c;
           position: relative;
+          padding: 24px;
           overflow: hidden;
-          background: var(--bg-base);
         }
-        .login-bg-orb {
+        .ambient-sphere {
           position: absolute;
           border-radius: 50%;
-          filter: blur(80px);
+          filter: blur(140px);
           pointer-events: none;
+          opacity: 0.22;
         }
-        .login-bg-orb--1 {
-          width: 500px; height: 500px;
-          top: -150px; left: -150px;
-          background: radial-gradient(circle, rgba(108,99,255,0.15), transparent 70%);
+        .ambient-sphere--1 {
+          width: 550px;
+          height: 550px;
+          top: -120px;
+          left: -100px;
+          background: radial-gradient(circle, var(--cyan-neon) 0%, transparent 70%);
         }
-        .login-bg-orb--2 {
-          width: 400px; height: 400px;
-          bottom: -100px; right: -100px;
-          background: radial-gradient(circle, rgba(0,212,255,0.1), transparent 70%);
+        .ambient-sphere--2 {
+          width: 650px;
+          height: 650px;
+          bottom: -150px;
+          right: -100px;
+          background: radial-gradient(circle, var(--violet-neon) 0%, transparent 70%);
         }
-        .login-container {
-          background: var(--bg-glass);
-          border: 1px solid var(--border-subtle);
-          border-radius: var(--radius-xl);
-          padding: 48px;
+        .login-glass-card {
           width: 100%;
-          max-width: 420px;
-          backdrop-filter: blur(24px);
-          box-shadow: var(--shadow-card), var(--shadow-glow);
+          max-width: 440px;
+          background: rgba(14, 18, 30, 0.75);
+          backdrop-filter: blur(28px) saturate(190%);
+          -webkit-backdrop-filter: blur(28px) saturate(190%);
+          border: 1px solid var(--border-glass);
+          box-shadow: 0 24px 60px -15px rgba(0, 0, 0, 0.9), inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+          border-radius: var(--radius-xl);
+          padding: 40px 36px;
           position: relative;
-          z-index: 1;
+          z-index: 10;
         }
-        .login-logo {
+        .login-brand-header {
           display: flex;
           align-items: center;
-          gap: 14px;
-          margin-bottom: 36px;
+          gap: 16px;
+          margin-bottom: 12px;
         }
-        .login-logo-icon {
-          width: 52px;
-          height: 52px;
-          border-radius: var(--radius-md);
-          background: var(--grad-primary);
+        .login-brand-icon {
+          width: 50px;
+          height: 50px;
+          border-radius: var(--radius-sm);
+          background: var(--grad-brand);
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 8px 24px rgba(108,99,255,0.4);
+          box-shadow: 0 8px 24px rgba(0, 242, 254, 0.35);
+          flex-shrink: 0;
         }
         .login-title {
           font-size: 1.5rem;
-          background: var(--grad-primary);
+          font-weight: 800;
+          letter-spacing: -0.02em;
+          background: linear-gradient(135deg, #ffffff 40%, #94a3b8 100%);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
-          background-clip: text;
-          margin: 0;
         }
-        .login-subtitle {
-          font-size: 0.8rem;
-          color: var(--text-muted);
-          margin: 0;
+        .login-badge-tag {
+          font-size: 0.65rem;
+          font-weight: 700;
+          color: var(--cyan-neon);
+          letter-spacing: 0.1em;
         }
-        .login-form {
-          display: flex;
-          flex-direction: column;
-          gap: 18px;
+        .login-description {
+          font-size: 0.85rem;
+          color: var(--text-secondary);
+          margin-bottom: 24px;
+          line-height: 1.5;
         }
-        .input-with-action {
+        .password-input-wrap {
           position: relative;
+          display: flex;
+          align-items: center;
         }
-        .input-with-action .form-input {
-          width: 100%;
-          padding-right: 44px;
-        }
-        .input-action-btn {
+        .password-toggle-btn {
           position: absolute;
-          right: 10px;
-          top: 50%;
-          transform: translateY(-50%);
+          right: 12px;
           background: none;
           border: none;
           color: var(--text-muted);
           cursor: pointer;
-          padding: 4px;
           display: flex;
           align-items: center;
+          padding: 4px;
           transition: color 0.2s;
         }
-        .input-action-btn:hover { color: var(--text-primary); }
-        .login-error {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: rgba(255, 71, 87, 0.1);
-          border: 1px solid rgba(255, 71, 87, 0.25);
-          border-radius: var(--radius-sm);
-          padding: 10px 14px;
-          color: var(--accent-red);
-          font-size: 0.85rem;
+        .password-toggle-btn:hover {
+          color: var(--text-primary);
         }
-        .login-hint {
-          margin-top: 20px;
-          font-size: 0.78rem;
-          color: var(--text-muted);
+        .login-footer-hint {
+          margin-top: 24px;
           text-align: center;
+          font-size: 0.72rem;
+          color: var(--text-muted);
+          letter-spacing: 0.05em;
         }
-        .login-hint code {
-          color: var(--accent-secondary);
-          background: rgba(0,212,255,0.08);
+        .login-footer-hint code {
+          color: var(--cyan-neon);
+          background: rgba(0, 242, 254, 0.08);
           padding: 2px 6px;
           border-radius: 4px;
         }

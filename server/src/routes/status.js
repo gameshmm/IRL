@@ -1,6 +1,7 @@
 const express = require('express');
 const os = require('os');
 const osUtils = require('node-os-utils');
+const { getActiveSessionsList } = require('../services/streamManager');
 
 const router = express.Router();
 
@@ -21,20 +22,7 @@ router.get('/', async (req, res) => {
     const minutes = Math.floor((uptime % 3600) / 60);
     const seconds = Math.floor(uptime % 60);
 
-    // Obtém sessões ativas do Map mantido pelo index.js (fonte autoritativa)
-    let activeSessionsList = [];
-    try {
-      const { activeSessions } = require('../index');
-      activeSessions.forEach((session, id) => {
-        activeSessionsList.push({
-          id,
-          path: session.StreamPath,
-          startTime: session.startedAtISO || null
-        });
-      });
-    } catch (e) {
-      // index.js ainda não disponível na inicialização
-    }
+    const activeSessionsList = getActiveSessionsList();
 
     res.json({
       status: 'online',

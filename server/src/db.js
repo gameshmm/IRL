@@ -1,41 +1,42 @@
 /**
  * db.js — Banco de dados SQLite via sql.js (WebAssembly)
- *
- * sql.js é o SQLite compilado para WASM — banco .db real em disco,
- * sem Python, sem Visual C++, sem compilação nativa.
- *
- * API pública:
- *   initDb()                     → async, chame uma vez na inicialização
- *   getSetting(key, default)
- *   upsertSetting(key, value)
- *   findStreamKey(key)
- *   dbRun(sql, params)           → INSERT / UPDATE / DELETE
- *   dbGet(sql, params)           → retorna uma linha como objeto
- *   dbAll(sql, params)           → retorna array de objetos
+ * com persistência atômica segura contra corrupção em falhas de energia/crash.
  */
 
-const path    = require('path');
-const fs      = require('fs');
-const bcrypt  = require('bcryptjs');
+const path   = require('path');
+const fs     = require('fs');
+const bcrypt = require('bcryptjs');
 
-const DB_PATH = path.join(__dirname, '..', 'irl.db');
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'irl.db');
 
 let sqlDb = null; // instância sql.js Database
 
-// ─── Persiste o banco em disco após cada escrita ──────────────────────────────
+// ─── Persistência Atômica do Banco em Disco ──────────────────────────────────
 function saveDb() {
   if (!sqlDb) return;
-  const data = sqlDb.export();
-  fs.writeFileSync(DB_PATH, Buffer.from(data));
+  try {
+    const data = sqlDb.export();
+    const dir = path.dirname(DB_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const tmpPath = `${DB_PATH}.${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`;
+    fs.writeFileSync(tmpPath, Buffer.from(data));
+    fs.renameSync(tmpPath, DB_PATH);
+  } catch (err) {
+    console.error('[DB] Erro crítico ao persistir banco:', err);
+  }
 }
 
-// ─── Helpers de query (API similar ao better-sqlite3) ─────────────────────────
+// ─── Helpers de query (API síncrona / type-safe) ──────────────────────────────
 function dbRun(sql, params = []) {
+  if (!sqlDb) throw new Error('[DB] Banco de dados não inicializado');
   sqlDb.run(sql, params);
   saveDb();
 }
 
 function dbGet(sql, params = []) {
+  if (!sqlDb) throw new Error('[DB] Banco de dados não inicializado');
   const stmt = sqlDb.prepare(sql);
   stmt.bind(params);
   const row = stmt.step() ? stmt.getAsObject() : undefined;
@@ -44,6 +45,7 @@ function dbGet(sql, params = []) {
 }
 
 function dbAll(sql, params = []) {
+  if (!sqlDb) throw new Error('[DB] Banco de dados não inicializado');
   const stmt = sqlDb.prepare(sql);
   stmt.bind(params);
   const rows = [];
@@ -54,17 +56,28 @@ function dbAll(sql, params = []) {
 
 // ─── Helpers de configuração ──────────────────────────────────────────────────
 function getSetting(key, defaultValue = null) {
-  const row = dbGet('SELECT value FROM settings WHERE key = ?', [key]);
-  return row ? row.value : defaultValue;
+  if (!sqlDb) return defaultValue;
+  try {
+    const row = dbGet('SELECT value FROM settings WHERE key = ?', [key]);
+    return row ? row.value : defaultValue;
+  } catch (_) {
+    return defaultValue;
+  }
 }
 
 function upsertSetting(key, value) {
+  if (!sqlDb) return;
   dbRun('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, String(value)]);
 }
 
 // ─── Autenticação de chave de stream (chamado pelo NMS) ───────────────────────
 function findStreamKey(key) {
-  return dbGet('SELECT key FROM stream_keys WHERE key = ?', [key]) || null;
+  if (!sqlDb) return null;
+  try {
+    return dbGet('SELECT key FROM stream_keys WHERE key = ?', [key]) || null;
+  } catch (_) {
+    return null;
+  }
 }
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
@@ -100,30 +113,26 @@ function seedDefaults() {
   if (!getSetting('admin_password_hash')) {
     const hash = bcrypt.hashSync('admin123', 10);
     upsertSetting('admin_password_hash', hash);
-    console.log('[DB] Senha padrão "admin123" criada. Altere nas Configurações!');
+    console.log('[DB] Senha inicial "admin123" configurada. Altere nas Configurações!');
   }
   if (!getSetting('admin_jwt_secret')) {
     upsertSetting('admin_jwt_secret', process.env.JWT_SECRET || 'changeme-please-set-JWT_SECRET-in-env');
   }
 }
 
-// ─── Inicialização (async — chame uma vez antes de tudo) ──────────────────────
+// ─── Inicialização ────────────────────────────────────────────────────────────
 async function initDb() {
   const initSqlJs = require('sql.js');
-
-  // Localiza o arquivo WASM dentro do pacote sql.js
   const wasmPath = path.join(require.resolve('sql.js'), '..', 'sql-wasm.wasm');
   const SQL = await initSqlJs({
     locateFile: () => wasmPath
   });
 
   if (fs.existsSync(DB_PATH)) {
-    // Carrega banco existente
     const buf = fs.readFileSync(DB_PATH);
     sqlDb = new SQL.Database(buf);
     console.log('[DB] Banco de dados carregado:', DB_PATH);
   } else {
-    // Cria novo banco
     sqlDb = new SQL.Database();
     console.log('[DB] Novo banco de dados criado:', DB_PATH);
   }
@@ -131,6 +140,10 @@ async function initDb() {
   sqlDb.run('PRAGMA foreign_keys = ON');
   createSchema();
   seedDefaults();
+
+  // Limpeza segura ao encerrar
+  process.on('SIGINT', () => { saveDb(); process.exit(0); });
+  process.on('SIGTERM', () => { saveDb(); process.exit(0); });
 }
 
-module.exports = { initDb, getSetting, upsertSetting, findStreamKey, dbRun, dbGet, dbAll };
+module.exports = { initDb, getSetting, upsertSetting, findStreamKey, dbRun, dbGet, dbAll, saveDb };

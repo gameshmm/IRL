@@ -3,10 +3,8 @@ import axios from 'axios';
 import {
   Radio, Power, MonitorPlay, Camera, AlertCircle, Check,
   RefreshCw, Wifi, WifiOff, Square, Circle, ChevronRight,
-  Layers, Settings2, ExternalLink, Copy
+  Layers, Settings2, ExternalLink, Copy, Sliders, Play, Film
 } from 'lucide-react';
-
-// ─── Sub-components ────────────────────────────────────────────────────────────
 
 function StatusDot({ active, label, color }) {
   return (
@@ -18,22 +16,6 @@ function StatusDot({ active, label, color }) {
     </div>
   );
 }
-
-function ActionBtn({ icon: Icon, label, onClick, variant = 'ghost', disabled, loading, danger }) {
-  return (
-    <button
-      className={`btn btn-${danger ? 'danger' : variant} ${loading ? 'btn-loading' : ''}`}
-      onClick={onClick}
-      disabled={disabled || loading}
-      title={label}
-    >
-      {loading ? <span className="loader" style={{ width: 15, height: 15 }} /> : <Icon size={16} />}
-      {label}
-    </button>
-  );
-}
-
-// ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function OBSPage() {
   const [obs, setObs] = useState({
@@ -48,7 +30,9 @@ export default function OBSPage() {
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
   const [signal, setSignal] = useState({ status: 'offline', bitrate: 0 });
-  const overlayUrl = `http://${window.location.hostname}:3001/overlay/`;
+
+  // URL dinâmica sem porta fixa 3001 para funcionar sob qualquer proxy ou domínio
+  const overlayUrl = `${window.location.protocol}//${window.location.host}/overlay/`;
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -57,18 +41,18 @@ export default function OBSPage() {
 
   const setLoad = (key, val) => setLoading(prev => ({ ...prev, [key]: val }));
 
-  // Poll OBS status every 3s
   const fetchOBS = useCallback(async () => {
     try {
       const res = await axios.get('/api/obs/status');
       setObs(res.data);
+      if (res.data.host) setHost(res.data.host);
+      if (res.data.port) setPort(String(res.data.port));
       setError(null);
     } catch (err) {
-      if (err.response?.status !== 401) setError('Erro ao buscar status do OBS');
+      if (err.response?.status !== 401) setError('Não foi possível verificar status do OBS');
     }
   }, []);
 
-  // Poll signal state every 3s
   const fetchSignal = useCallback(async () => {
     try {
       const res = await axios.get('/signal/status');
@@ -87,11 +71,11 @@ export default function OBSPage() {
     setConnecting(true);
     setError(null);
     try {
-      const res = await axios.post('/api/obs/connect', { host, port: parseInt(port), password });
+      const res = await axios.post('/api/obs/connect', { host, port: parseInt(port, 10), password });
       setObs(res.data);
       showToast('Conectado ao OBS com sucesso!');
     } catch (err) {
-      setError(err.response?.data?.error || 'Falha ao conectar ao OBS. Verifique se o WebSocket está ativo.');
+      setError(err.response?.data?.error || 'Falha ao conectar ao OBS. Verifique se o WebSocket Server está ativado nas ferramentas do OBS.');
     } finally {
       setConnecting(false);
     }
@@ -112,7 +96,7 @@ export default function OBSPage() {
     try {
       const res = await axios.post(`/api/obs/stream/${action}`);
       showToast(res.data.message);
-      setTimeout(fetchOBS, 1500);
+      setTimeout(fetchOBS, 1000);
     } catch (err) {
       showToast(err.response?.data?.error || 'Erro ao controlar stream', 'error');
     } finally {
@@ -125,7 +109,7 @@ export default function OBSPage() {
     try {
       const res = await axios.post(`/api/obs/record/${action}`);
       showToast(res.data.message);
-      setTimeout(fetchOBS, 1500);
+      setTimeout(fetchOBS, 1000);
     } catch (err) {
       showToast(err.response?.data?.error || 'Erro ao controlar gravação', 'error');
     } finally {
@@ -151,489 +135,369 @@ export default function OBSPage() {
     showToast('URL do overlay copiada!');
   };
 
-  const signalColorMap = {
-    live: 'green', weak: 'orange', lost: 'red',
-    connecting: 'purple', offline: 'off'
-  };
-  const signalLabelMap = {
-    live: '🔴 AO VIVO', weak: '⚠ Sinal Fraco', lost: '✗ Sinal Perdido',
-    connecting: '◌ Conectando', offline: '— Offline'
-  };
-
   return (
-    <div className="animate-fadeInUp">
+    <div className="obs-view animate-fadeIn">
+      {/* Header */}
       <div className="page-header">
-        <h1>Controle do OBS</h1>
-        <p>Gerencie o OBS Studio remotamente via WebSocket — inicie streams, troque cenas e monitore o sinal</p>
+        <div>
+          <h1>Mesa de Controle OBS Studio</h1>
+          <p>Automação e controle remoto de estúdio via WebSocket — troca de cenas e acionamento de live</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button className="btn btn-ghost btn-sm" onClick={fetchOBS}>
+            <RefreshCw size={14} /> Atualizar Cenas
+          </button>
+        </div>
       </div>
 
       {error && (
-        <div className="obs-error-bar">
-          <AlertCircle size={16} /> {error}
+        <div className="studio-alert studio-alert--lost" style={{ marginBottom: 20 }}>
+          <div className="flex items-center gap-2">
+            <AlertCircle size={18} /> {error}
+          </div>
         </div>
       )}
 
-      <div className="obs-grid">
+      {/* Grid Principal */}
+      <div className="grid grid-2" style={{ marginBottom: 24 }}>
 
-        {/* ── Connection Panel ── */}
-        <div className="card obs-connect-card">
-          <div className="obs-card-title">
-            <Wifi size={16} color="var(--accent-primary)" />
-            <h3>Conexão OBS WebSocket</h3>
+        {/* ── Painel de Conexão WebSocket ── */}
+        <div className="card">
+          <div className="card-header">
+            <div className="card-title">
+              <Wifi size={18} color="var(--cyan-neon)" /> Conexão OBS WebSocket v5
+            </div>
+            {obs.connected ? (
+              <span className="badge badge-live">ONLINE</span>
+            ) : (
+              <span className="badge badge-offline">DESCONECTADO</span>
+            )}
           </div>
-          <div className="divider" />
 
           {!obs.connected ? (
-            <div className="obs-connect-form">
+            <div className="obs-form-body">
               {obs.reconnecting && (
-                <div className="obs-reconnecting-bar">
-                  <span className="loader" style={{ width: 13, height: 13 }} />
+                <div className="reconnecting-box">
+                  <span className="loader" style={{ width: 14, height: 14 }} />
                   Reconectando automaticamente... (tentativa {obs.reconnectAttempts})
                 </div>
               )}
-              <div className="obs-connect-info">
-                <AlertCircle size={14} />
-                <p>Ative o WebSocket no OBS: <strong>Ferramentas → WebSocket Server Settings → Enable</strong></p>
-              </div>
-              <div className="obs-fields-row">
-                <div className="form-group" style={{ flex: 2 }}>
-                  <label className="form-label">Host</label>
-                  <input id="obs-host" type="text" className="form-input" value={host}
-                    onChange={e => setHost(e.target.value)} placeholder="localhost" />
+              <p style={{ fontSize: '0.82rem', marginBottom: 14 }}>
+                No OBS Studio, acesse <strong>Ferramentas → Configurações do servidor WebSocket</strong> e habilite o servidor na porta 4455.
+              </p>
+
+              <div className="grid grid-2" style={{ gap: 12, marginBottom: 12 }}>
+                <div className="form-group">
+                  <label className="form-label">Host / IP</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={host}
+                    onChange={e => setHost(e.target.value)}
+                    placeholder="localhost ou IP do PC"
+                  />
                 </div>
-                <div className="form-group" style={{ flex: 1 }}>
+                <div className="form-group">
                   <label className="form-label">Porta</label>
-                  <input id="obs-port" type="number" className="form-input" value={port}
-                    onChange={e => setPort(e.target.value)} placeholder="4455" />
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={port}
+                    onChange={e => setPort(e.target.value)}
+                    placeholder="4455"
+                  />
                 </div>
               </div>
-              <div className="form-group">
-                <label className="form-label">Senha (opcional)</label>
-                <input id="obs-password" type="password" className="form-input" value={password}
-                  onChange={e => setPassword(e.target.value)} placeholder="Senha do WebSocket" />
+
+              <div className="form-group" style={{ marginBottom: 18 }}>
+                <label className="form-label">Senha (se configurada no OBS)</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Deixe em branco se sem senha"
+                />
               </div>
-              <button id="obs-connect-btn" className="btn btn-primary w-full" onClick={handleConnect} disabled={connecting}>
-                {connecting
-                  ? <><span className="loader" style={{ width: 15, height: 15 }} /> Conectando...</>
-                  : <><Wifi size={15} /> Conectar ao OBS</>
-                }
+
+              <button
+                className="btn btn-primary w-full"
+                onClick={handleConnect}
+                disabled={connecting}
+              >
+                {connecting ? 'Estabelecendo conexão...' : 'Conectar ao OBS Studio'}
               </button>
             </div>
           ) : (
-            <div className="obs-connected-info">
-              <div className="obs-connected-badge">
-                <span className="dot dot--green" />
-                <span>Conectado em <code>{host}:{port}</code></span>
+            <div className="obs-connected-box">
+              <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: '1.1rem' }}>Sessão Ativa</div>
+                  <div className="font-mono" style={{ fontSize: '0.8rem', color: 'var(--cyan-neon)' }}>
+                    ws://{host}:{port}
+                  </div>
+                </div>
+                <button className="btn btn-ghost btn-sm" onClick={handleDisconnect}>
+                  <WifiOff size={14} /> Desconectar
+                </button>
               </div>
-              <div className="obs-status-row">
-                <StatusDot active={obs.streaming} label="Stream" color="red" />
-                <StatusDot active={obs.recording} label="Gravação" color="orange" />
+
+              <div className="grid grid-2" style={{ gap: 12 }}>
+                <div className="status-deck-tile">
+                  <span className="deck-label">TRANSMISSÃO</span>
+                  <span className="deck-val font-mono" style={{ color: obs.streaming ? 'var(--crimson-alert)' : 'var(--text-muted)' }}>
+                    {obs.streaming ? '● AO VIVO' : 'STANDBY'}
+                  </span>
+                </div>
+                <div className="status-deck-tile">
+                  <span className="deck-label">GRAVAÇÃO</span>
+                  <span className="deck-val font-mono" style={{ color: obs.recording ? 'var(--amber-warn)' : 'var(--text-muted)' }}>
+                    {obs.recording ? '● GRAVANDO' : 'PARADA'}
+                  </span>
+                </div>
               </div>
-              <button className="btn btn-ghost btn-sm" onClick={handleDisconnect}>
-                <WifiOff size={14} /> Desconectar
-              </button>
             </div>
           )}
         </div>
 
-        {/* ── Signal Monitor ── */}
-        <div className={`card obs-signal-card obs-signal-card--${signal.status}`}>
-          <div className="obs-card-title">
-            <Radio size={16} />
-            <h3>Monitor de Sinal RTMP</h3>
-          </div>
-          <div className="divider" />
-          <div className="signal-status-display">
-            <div className={`signal-badge signal-badge--${signalColorMap[signal.status] || 'off'}`}>
-              {signalLabelMap[signal.status] || '— Offline'}
-            </div>
-            {signal.bitrate > 0 && (
-              <div className="signal-bitrate">{signal.bitrate} kbps</div>
-            )}
-            {signal.streamPath && (
-              <code className="signal-path">{signal.streamPath}</code>
-            )}
-            {signal.lostAt && (
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                Perdido em: {new Date(signal.lostAt).toLocaleTimeString('pt-BR')}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* ── Stream Controls ── */}
+        {/* ── Mestre de Ações: Stream & Gravação ── */}
         <div className="card">
-          <div className="obs-card-title">
-            <MonitorPlay size={16} color="var(--accent-red)" />
-            <h3>Controle de Stream</h3>
+          <div className="card-header">
+            <div className="card-title">
+              <MonitorPlay size={18} color="var(--crimson-alert)" /> Transmissão & Gravação
+            </div>
+            <span className="font-mono" style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              SAÍDAS DE PRODUÇÃO
+            </span>
           </div>
-          <div className="divider" />
 
           {!obs.connected ? (
-            <div className="empty-state" style={{ padding: 24 }}>
-              <WifiOff size={32} />
-              <p>Conecte ao OBS primeiro</p>
+            <div className="empty-state">
+              <MonitorPlay size={36} color="var(--text-muted)" style={{ opacity: 0.4 }} />
+              <p>Conecte o WebSocket do OBS para liberar os controles de transmissão.</p>
             </div>
           ) : (
-            <div className="obs-controls">
-              <div className="stream-status-big">
-                <div className={`stream-indicator ${obs.streaming ? 'stream-indicator--live' : ''}`}>
-                  {obs.streaming ? '🔴 STREAM AO VIVO' : '⬛ STREAM PARADO'}
+            <div className="stream-action-grid">
+              <div className="action-control-card">
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 4 }}>
+                    Transmissão Principal (Twitch / YouTube)
+                  </div>
+                  <p style={{ fontSize: '0.8rem' }}>
+                    Inicia ou interrompe a transmissão configurada no OBS Studio.
+                  </p>
                 </div>
-              </div>
-
-              <div className="obs-btn-group">
                 {!obs.streaming ? (
-                  <button id="obs-start-stream" className="btn obs-start-btn"
-                    onClick={() => streamAction('start')} disabled={loading.stream}>
-                    {loading.stream
-                      ? <><span className="loader" style={{ width: 16, height: 16 }} /> Iniciando...</>
-                      : <><Radio size={18} /> Iniciar Stream</>
-                    }
+                  <button
+                    className="btn btn-danger w-full"
+                    onClick={() => streamAction('start')}
+                    disabled={loading.stream}
+                  >
+                    <Radio size={16} /> Iniciar Transmissão no OBS
                   </button>
                 ) : (
-                  <button id="obs-stop-stream" className="btn obs-stop-btn"
-                    onClick={() => streamAction('stop')} disabled={loading.stream}>
-                    {loading.stream
-                      ? <><span className="loader" style={{ width: 16, height: 16 }} /> Parando...</>
-                      : <><Square size={18} /> Parar Stream</>
-                    }
+                  <button
+                    className="btn btn-ghost w-full"
+                    style={{ borderColor: 'var(--crimson-alert)', color: 'var(--crimson-alert)' }}
+                    onClick={() => streamAction('stop')}
+                    disabled={loading.stream}
+                  >
+                    <Square size={16} /> Encerrar Transmissão no OBS
                   </button>
                 )}
               </div>
 
-              <div className="divider" />
-
-              {/* Recording */}
-              <div className="obs-card-title" style={{ marginBottom: 12 }}>
-                <Circle size={14} color={obs.recording ? 'var(--accent-red)' : 'var(--text-muted)'} />
-                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                  {obs.recording ? 'Gravando...' : 'Gravação'}
-                </span>
-              </div>
-              <div className="obs-btn-group">
-                <button className="btn btn-ghost btn-sm"
-                  onClick={() => recordAction(obs.recording ? 'stop' : 'start')}
-                  disabled={loading.record}>
-                  {loading.record
-                    ? <span className="loader" style={{ width: 14, height: 14 }} />
-                    : obs.recording ? <><Square size={14} /> Parar Gravação</> : <><Circle size={14} /> Iniciar Gravação</>
-                  }
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── Scene Switcher ── */}
-        <div className="card">
-          <div className="obs-card-title">
-            <Layers size={16} color="var(--accent-secondary)" />
-            <h3>Cenas</h3>
-            {obs.connected && (
-              <button className="btn btn-ghost btn-sm btn-icon" onClick={fetchOBS} title="Atualizar">
-                <RefreshCw size={13} />
-              </button>
-            )}
-          </div>
-          <div className="divider" />
-
-          {!obs.connected ? (
-            <div className="empty-state" style={{ padding: 24 }}>
-              <Layers size={32} />
-              <p>Conecte ao OBS para ver as cenas</p>
-            </div>
-          ) : obs.scenes.length === 0 ? (
-            <div className="empty-state" style={{ padding: 24 }}>
-              <p>Nenhuma cena encontrada</p>
-            </div>
-          ) : (
-            <div className="scenes-list">
-              {obs.scenes.map(scene => (
-                <button
-                  key={scene}
-                  className={`scene-item ${obs.currentScene === scene ? 'scene-item--active' : ''}`}
-                  onClick={() => switchScene(scene)}
-                  disabled={loading[`scene_${scene}`] || obs.currentScene === scene}
-                >
-                  <div className="scene-item-left">
-                    {loading[`scene_${scene}`]
-                      ? <span className="loader" style={{ width: 14, height: 14 }} />
-                      : <Camera size={14} />
-                    }
-                    <span>{scene}</span>
+              <div className="action-control-card" style={{ marginTop: 14 }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 4 }}>
+                    Gravação Local em Disco
                   </div>
-                  {obs.currentScene === scene
-                    ? <span className="badge badge-live" style={{ fontSize: '0.65rem' }}>ATUAL</span>
-                    : <ChevronRight size={14} style={{ opacity: 0.4 }} />
-                  }
+                  <p style={{ fontSize: '0.8rem' }}>
+                    Grava o arquivo de vídeo original com qualidade total.
+                  </p>
+                </div>
+                <button
+                  className="btn btn-ghost w-full"
+                  onClick={() => recordAction(obs.recording ? 'stop' : 'start')}
+                  disabled={loading.record}
+                >
+                  <Film size={16} /> {obs.recording ? 'Parar Gravação' : 'Iniciar Gravação Local'}
                 </button>
-              ))}
+              </div>
             </div>
           )}
         </div>
-
-        {/* ── Overlay Setup ── */}
-        <div className="card obs-overlay-card">
-          <div className="obs-card-title">
-            <Settings2 size={16} color="var(--accent-pink)" />
-            <h3>Overlay de Sinal perdido</h3>
-          </div>
-          <div className="divider" />
-
-          <div className="overlay-instructions">
-            <div className="overlay-step">
-              <span className="step-num">1</span>
-              <p>Copie a URL abaixo e adicione como <strong>Browser Source</strong> no OBS</p>
-            </div>
-            <div className="overlay-url-row">
-              <code className="code-block" style={{ flex: 1, fontSize: '0.78rem' }}>{overlayUrl}</code>
-              <button className="btn btn-ghost btn-sm btn-icon" onClick={copyOverlayUrl} title="Copiar URL">
-                <Copy size={14} />
-              </button>
-              <a href={overlayUrl} target="_blank" rel="noreferrer"
-                className="btn btn-ghost btn-sm btn-icon" title="Abrir overlay">
-                <ExternalLink size={14} />
-              </a>
-            </div>
-
-            <div className="overlay-step">
-              <span className="step-num">2</span>
-              <p>Configure o Browser Source com <strong>1920×1080</strong> e marque <strong>"Shut down source when not visible"</strong></p>
-            </div>
-
-            <div className="overlay-step">
-              <span className="step-num">3</span>
-              <p>Deixe o overlay na <strong>camada mais alta</strong> da cena no OBS</p>
-            </div>
-
-            <div className="overlay-preview">
-              <div className="overlay-preview-label">Comportamento do overlay:</div>
-              <div className="overlay-behavior-list">
-                <div className="behavior-item behavior-item--red">
-                  <span>🔴 Sinal Perdido</span>
-                  <span>Tela escura animada com "Sinal Perdido"</span>
-                </div>
-                <div className="behavior-item behavior-item--orange">
-                  <span>⚠ Sinal Fraco</span>
-                  <span>Badge no canto com bitrate atual</span>
-                </div>
-                <div className="behavior-item behavior-item--purple">
-                  <span>◌ Reconectando</span>
-                  <span>Banner no topo "Reconectando..."</span>
-                </div>
-                <div className="behavior-item behavior-item--green">
-                  <span>✓ Ao Vivo</span>
-                  <span>Overlay invisível (transparente)</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <div className="toast-container">
-          <div className={`toast toast-${toast.type}`}>
-            {toast.type === 'success'
-              ? <Check size={16} color="var(--accent-green)" />
-              : <AlertCircle size={16} color="var(--accent-red)" />
-            }
-            {toast.msg}
+      {/* ── Switcher de Cenas (StreamDeck Pro) ── */}
+      <div className="card" style={{ marginBottom: 24 }}>
+        <div className="card-header">
+          <div className="card-title">
+            <Layers size={18} color="var(--violet-neon)" /> Deck de Cenas (Production Switcher)
           </div>
+          <span className="font-mono" style={{ fontSize: '0.78rem', color: 'var(--cyan-neon)' }}>
+            CENA PROGRAM: {obs.currentScene || 'NENHUMA'}
+          </span>
         </div>
-      )}
+
+        {!obs.connected ? (
+          <div className="empty-state">
+            <Layers size={36} color="var(--text-muted)" style={{ opacity: 0.4 }} />
+            <p>Conecte ao OBS para carregar a lista de cenas.</p>
+          </div>
+        ) : obs.scenes.length === 0 ? (
+          <div className="empty-state">
+            <p>Nenhuma cena localizada no OBS Studio.</p>
+          </div>
+        ) : (
+          <div className="streamdeck-grid">
+            {obs.scenes.map(scene => {
+              const isCurrent = obs.currentScene === scene;
+              return (
+                <button
+                  key={scene}
+                  className={`deck-scene-btn ${isCurrent ? 'deck-scene-btn--program' : ''}`}
+                  onClick={() => switchScene(scene)}
+                  disabled={loading[`scene_${scene}`] || isCurrent}
+                >
+                  <div className="deck-scene-top">
+                    <span className="deck-scene-tally" />
+                    <span className="deck-scene-tag font-mono">
+                      {isCurrent ? 'PROGRAM (LIVE)' : 'PREVIEW'}
+                    </span>
+                  </div>
+                  <div className="deck-scene-name">{scene}</div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Configuração do Overlay de Queda de Sinal no OBS ── */}
+      <div className="card">
+        <div className="card-header">
+          <div className="card-title">
+            <Settings2 size={18} color="var(--cyan-neon)" /> Overlay de Sinal Perdido (OBS Browser Source)
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={copyOverlayUrl}>
+            <Copy size={13} /> Copiar URL do Overlay
+          </button>
+        </div>
+
+        <p style={{ maxWidth: 700, marginBottom: 14 }}>
+          Adicione uma fonte de <strong>Navegador (Browser Source)</strong> no OBS com resolução <strong>1920x1080</strong> para exibir a tela de "Sinal Perdido" automaticamente quando o seu celular 4G perder a conexão.
+        </p>
+
+        <div className="code-block flex items-center justify-between">
+          <span className="font-mono">{overlayUrl}</span>
+          <button className="btn btn-ghost btn-sm" onClick={copyOverlayUrl}>
+            Copiar
+          </button>
+        </div>
+      </div>
 
       <style>{`
-        .obs-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 20px;
+        .obs-form-body {
+          padding-top: 4px;
         }
-        @media (max-width: 1024px) { .obs-grid { grid-template-columns: 1fr; } }
-
-        .obs-error-bar {
-          display: flex; align-items: center; gap: 8px;
-          background: rgba(255,71,87,0.1); border: 1px solid rgba(255,71,87,0.25);
-          border-radius: var(--radius-md); padding: 12px 16px;
-          color: var(--accent-red); font-size: 0.875rem; margin-bottom: 20px;
+        .reconnecting-box {
+          background: rgba(255, 184, 0, 0.12);
+          border: 1px solid rgba(255, 184, 0, 0.3);
+          color: var(--amber-warn);
+          border-radius: var(--radius-sm);
+          padding: 8px 12px;
+          font-size: 0.8rem;
+          margin-bottom: 12px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
         }
-
-        .obs-card-title {
-          display: flex; align-items: center; gap: 10px; margin-bottom: 0;
-          flex-wrap: wrap;
+        .status-deck-tile {
+          background: rgba(0, 0, 0, 0.35);
+          border: 1px solid var(--border-subtle);
+          border-radius: var(--radius-sm);
+          padding: 12px 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
         }
-        .obs-card-title h3 { font-size: 0.95rem; flex: 1; }
-
-        /* Connect */
-        .obs-connect-form { display: flex; flex-direction: column; gap: 14px; }
-        .obs-reconnecting-bar {
-          display: flex; align-items: center; gap: 8px;
-          background: rgba(108,99,255,0.1); border: 1px solid rgba(108,99,255,0.25);
-          border-radius: var(--radius-sm); padding: 10px 14px;
-          font-size: 0.8rem; color: var(--accent-primary); font-weight: 600;
-        }
-        .obs-connect-info {
-          display: flex; align-items: flex-start; gap: 8px;
-          background: rgba(108,99,255,0.08); border: 1px solid rgba(108,99,255,0.15);
-          border-radius: var(--radius-sm); padding: 10px 14px;
-          font-size: 0.8rem; color: var(--text-secondary);
-        }
-        .obs-connect-info p { margin: 0; }
-        .obs-connect-info strong { color: var(--accent-primary); }
-        .obs-fields-row { display: flex; gap: 10px; }
-        .obs-connected-info { display: flex; flex-direction: column; gap: 14px; }
-        .obs-connected-badge {
-          display: flex; align-items: center; gap: 10px;
-          font-size: 0.875rem; color: var(--text-secondary);
-        }
-        .obs-connected-badge code {
-          color: var(--accent-secondary); background: rgba(0,212,255,0.08);
-          padding: 2px 8px; border-radius: 4px;
-        }
-        .obs-status-row { display: flex; gap: 20px; }
-        .obs-status-dot { display: flex; align-items: center; gap: 8px; }
-        .dot {
-          width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-        }
-        .dot--green { background: var(--accent-green); box-shadow: 0 0 8px var(--accent-green); animation: glow-pulse 1.5s infinite; }
-        .dot--red { background: var(--accent-red); box-shadow: 0 0 8px var(--accent-red); animation: glow-pulse 1.5s infinite; }
-        .dot--orange { background: var(--accent-orange); box-shadow: 0 0 8px var(--accent-orange); animation: glow-pulse 1.5s infinite; }
-        .dot--purple { background: var(--accent-primary); }
-        .dot--off { background: var(--text-muted); }
-        .dot-label { font-size: 0.8rem; font-weight: 600; }
-        .dot-label--green { color: var(--accent-green); }
-        .dot-label--red { color: var(--accent-red); }
-        .dot-label--orange { color: var(--accent-orange); }
-        .dot-label--off { color: var(--text-muted); }
-
-        /* Signal */
-        .obs-signal-card { transition: border-color 0.4s; }
-        .obs-signal-card--live { border-color: rgba(0,230,118,0.3); }
-        .obs-signal-card--weak { border-color: rgba(255,165,2,0.3); }
-        .obs-signal-card--lost { border-color: rgba(255,71,87,0.3); }
-        .obs-signal-card--connecting { border-color: rgba(108,99,255,0.3); }
-
-        .signal-status-display { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
-        .signal-badge {
-          display: inline-flex; align-items: center;
-          padding: 8px 16px; border-radius: 99px;
-          font-size: 0.95rem; font-weight: 800; letter-spacing: 1px;
-          width: fit-content;
-        }
-        .signal-badge--green { background: rgba(0,230,118,0.15); color: var(--accent-green); border: 1px solid rgba(0,230,118,0.3); }
-        .signal-badge--orange { background: rgba(255,165,2,0.15); color: var(--accent-orange); border: 1px solid rgba(255,165,2,0.3); }
-        .signal-badge--red { background: rgba(255,71,87,0.15); color: var(--accent-red); border: 1px solid rgba(255,71,87,0.3); }
-        .signal-badge--purple { background: rgba(108,99,255,0.15); color: var(--accent-primary); border: 1px solid rgba(108,99,255,0.3); }
-        .signal-badge--off { background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid var(--border-subtle); }
-        .signal-bitrate { font-size: 2rem; font-weight: 800; color: var(--text-primary); }
-        .signal-path { font-size: 0.75rem; color: var(--text-muted); word-break: break-all; }
-
-        /* Stream Controls */
-        .obs-controls { display: flex; flex-direction: column; gap: 14px; }
-        .stream-status-big { text-align: center; padding: 8px 0; }
-        .stream-indicator {
-          display: inline-block;
-          font-size: 1rem; font-weight: 800; letter-spacing: 2px;
+        .deck-label {
+          font-size: 0.7rem;
+          font-weight: 800;
           color: var(--text-muted);
-          padding: 10px 24px; border-radius: 99px;
-          background: rgba(255,255,255,0.04);
+          letter-spacing: 0.06em;
+        }
+        .deck-val {
+          font-size: 1.1rem;
+          font-weight: 800;
+        }
+        .action-control-card {
+          background: rgba(255, 255, 255, 0.02);
           border: 1px solid var(--border-subtle);
+          border-radius: var(--radius-md);
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
         }
-        .stream-indicator--live {
-          color: #ff4757;
-          background: rgba(255,71,87,0.12);
-          border-color: rgba(255,71,87,0.3);
-          animation: glow-pulse 2s infinite;
+        .streamdeck-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+          gap: 14px;
         }
-        .obs-btn-group { display: flex; gap: 10px; }
-        .obs-start-btn {
-          background: linear-gradient(135deg, #ff4757, #ff6b9d);
-          color: #fff; border: none; cursor: pointer;
-          display: flex; align-items: center; gap: 8px;
-          padding: 14px 28px; border-radius: var(--radius-md);
-          font-size: 1rem; font-weight: 700; width: 100%;
-          justify-content: center;
-          box-shadow: 0 6px 20px rgba(255,71,87,0.35);
-          transition: all 0.2s ease;
-        }
-        .obs-start-btn:hover:not(:disabled) {
-          transform: translateY(-2px);
-          box-shadow: 0 10px 30px rgba(255,71,87,0.5);
-        }
-        .obs-stop-btn {
-          background: rgba(255,255,255,0.06);
-          color: var(--text-secondary);
-          border: 2px solid var(--border-subtle);
+        .deck-scene-btn {
+          background: rgba(255, 255, 255, 0.03);
+          border: 1.5px solid var(--border-subtle);
+          border-radius: var(--radius-md);
+          padding: 18px 16px;
+          text-align: left;
           cursor: pointer;
-          display: flex; align-items: center; gap: 8px;
-          padding: 14px 28px; border-radius: var(--radius-md);
-          font-size: 1rem; font-weight: 700; width: 100%;
-          justify-content: center;
-          transition: all 0.2s ease;
+          transition: all 0.2s var(--ease-spring);
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          position: relative;
+          color: var(--text-primary);
         }
-        .obs-stop-btn:hover:not(:disabled) { border-color: var(--accent-red); color: var(--accent-red); }
-
-        /* Scenes */
-        .scenes-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
-        .scene-item {
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 10px 14px; border-radius: var(--radius-sm);
-          border: 1px solid var(--border-subtle);
-          background: var(--bg-elevated);
-          cursor: pointer; color: var(--text-secondary);
-          font-size: 0.875rem; font-weight: 500;
-          transition: all 0.2s; text-align: left; width: 100%;
+        .deck-scene-btn:hover:not(:disabled) {
+          border-color: var(--cyan-neon);
+          background: rgba(0, 242, 254, 0.06);
+          transform: translateY(-2px);
         }
-        .scene-item:hover:not(:disabled):not(.scene-item--active) {
-          border-color: var(--border-glow); color: var(--text-primary);
-          background: var(--bg-glass-hover);
-        }
-        .scene-item--active {
-          border-color: rgba(108,99,255,0.4);
-          background: rgba(108,99,255,0.1);
-          color: var(--accent-primary);
+        .deck-scene-btn--program {
+          background: linear-gradient(135deg, rgba(255, 42, 95, 0.18) 0%, rgba(112, 0, 255, 0.12) 100%);
+          border-color: var(--crimson-alert);
+          box-shadow: 0 0 20px rgba(255, 42, 95, 0.35);
           cursor: default;
         }
-        .scene-item-left { display: flex; align-items: center; gap: 10px; }
-
-        /* Overlay */
-        .obs-overlay-card { grid-column: span 2; }
-        @media (max-width: 1024px) { .obs-overlay-card { grid-column: span 1; } }
-        .overlay-instructions { display: flex; flex-direction: column; gap: 16px; }
-        .overlay-step { display: flex; align-items: flex-start; gap: 12px; }
-        .step-num {
-          width: 26px; height: 26px; flex-shrink: 0;
+        .deck-scene-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .deck-scene-tally {
+          width: 8px;
+          height: 8px;
           border-radius: 50%;
-          background: var(--grad-primary);
-          display: flex; align-items: center; justify-content: center;
-          font-size: 0.8rem; font-weight: 800; color: #fff;
+          background: var(--text-muted);
         }
-        .overlay-step p { font-size: 0.875rem; padding-top: 2px; }
-        .overlay-step strong { color: var(--text-primary); }
-        .overlay-url-row { display: flex; align-items: center; gap: 8px; margin-left: 38px; }
-
-        .overlay-preview { margin-left: 38px; }
-        .overlay-preview-label { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; margin-bottom: 10px; }
-        .overlay-behavior-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        @media (max-width: 700px) { .overlay-behavior-list { grid-template-columns: 1fr; } }
-        .behavior-item {
-          display: flex; flex-direction: column; gap: 4px;
-          padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid;
-          font-size: 0.8rem;
+        .deck-scene-btn--program .deck-scene-tally {
+          background: var(--crimson-alert);
+          box-shadow: 0 0 8px var(--crimson-alert);
         }
-        .behavior-item span:first-child { font-weight: 700; }
-        .behavior-item span:last-child { color: var(--text-muted); }
-        .behavior-item--red { background: rgba(255,71,87,0.06); border-color: rgba(255,71,87,0.2); color: var(--accent-red); }
-        .behavior-item--orange { background: rgba(255,165,2,0.06); border-color: rgba(255,165,2,0.2); color: var(--accent-orange); }
-        .behavior-item--purple { background: rgba(108,99,255,0.06); border-color: rgba(108,99,255,0.2); color: var(--accent-primary); }
-        .behavior-item--green { background: rgba(0,230,118,0.06); border-color: rgba(0,230,118,0.2); color: var(--accent-green); }
-
-        @keyframes glow-pulse {
-          0%, 100% { box-shadow: 0 0 8px currentColor; opacity: 1; }
-          50% { box-shadow: 0 0 20px currentColor; opacity: 0.8; }
+        .deck-scene-tag {
+          font-size: 0.65rem;
+          font-weight: 800;
+          color: var(--text-muted);
+        }
+        .deck-scene-btn--program .deck-scene-tag {
+          color: var(--crimson-alert);
+        }
+        .deck-scene-name {
+          font-size: 1rem;
+          font-weight: 700;
+          word-break: break-word;
         }
       `}</style>
     </div>

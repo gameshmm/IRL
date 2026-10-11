@@ -6,7 +6,10 @@ yarn-error.log*
 
 # ─── Environment ──────────────────────────────────────────────────────────────
 .env
+server/.env
 !.env.example
+!server/.env.example
+*.tmp
 
 # ─── Build output ─────────────────────────────────────────────────────────────
 dashboard/dist/
